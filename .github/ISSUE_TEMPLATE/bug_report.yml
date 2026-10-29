@@ -1,0 +1,79 @@
+name: Bug report
+description: Report a reproducible problem with ScribbleCap.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search existing issues first. For questions, use [Discussions](https://github.com/ScribbleCap/scribblecap/discussions).
+        For vulnerabilities or recoverable redacted data, follow the [security policy](https://github.com/ScribbleCap/scribblecap/security/policy) instead of posting details here.
+        Use synthetic examples; remove personal information, tokens and private file paths from attachments and logs.
+  - type: input
+    id: version
+    attributes:
+      label: ScribbleCap version or commit
+      description: For a source build, include the commit SHA.
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Windows
+        - Linux (X11)
+        - Linux (Wayland)
+        - Linux (unsure of display server)
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: System details
+      description: OS version, CPU architecture and, on Linux, distribution and desktop environment. Include display scaling if relevant.
+    validations:
+      required: true
+  - type: dropdown
+    id: affected
+    attributes:
+      label: Where does the problem occur?
+      multiple: true
+      options:
+        - Installation or startup
+        - Capture or clipboard input
+        - Editor display or interaction
+        - Exported or copied output
+        - Reopening an editable file
+        - CLI
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include the input format and exact actions or CLI command. Attach a minimal synthetic input if useful.
+      placeholder: |
+        1. Open ...
+        2. Select ...
+        3. Save as ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include screenshots or a short recording where helpful.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or error messages
+      render: text
