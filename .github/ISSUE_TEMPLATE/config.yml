@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions and design discussions
+    url: https://github.com/ScribbleCap/scribblecap/discussions
+    about: Ask for help, discuss ideas or clarify a proposed contribution.
+  - name: Security vulnerabilities
+    url: https://github.com/ScribbleCap/scribblecap/security/policy
+    about: Read the private reporting instructions. Do not disclose vulnerabilities in public issues.

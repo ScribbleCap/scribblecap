@@ -1,0 +1,45 @@
+name: Feature request
+description: Suggest an improvement to the capture, annotate or share workflow.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check existing issues and the [roadmap](https://github.com/ScribbleCap/scribblecap/blob/main/docs/roadmap.md) first.
+        ScribbleCap focuses on fast desktop image annotation, with PDF support planned after the first release. See the [vision](https://github.com/ScribbleCap/scribblecap/blob/main/docs/vision.md) for scope.
+        For open-ended ideas or questions, start in [Discussions](https://github.com/ScribbleCap/scribblecap/discussions).
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the task, who it helps and what makes the current workflow difficult.
+    validations:
+      required: true
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Proposed workflow
+      description: Explain what the user would do and what would happen. Mockups are welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Include existing tools or workarounds and their limitations.
+  - type: dropdown
+    id: platforms
+    attributes:
+      label: Relevant platforms
+      multiple: true
+      options:
+        - All desktop platforms
+        - macOS
+        - Windows
+        - Linux (X11)
+        - Linux (Wayland)
+        - CLI or headless use
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Link related issues or roadmap tasks. Use original mockups and synthetic examples; do not attach proprietary assets.
