@@ -45,7 +45,7 @@ jobs:
             libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
 
       - name: Install pinned Node before bootstrapping pnpm
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: ui/.node-version
           package-manager-cache: false
@@ -57,7 +57,7 @@ jobs:
           run_install: false
 
       - name: Install Node and cache pnpm dependencies
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: ui/.node-version
           cache: pnpm
