@@ -31,6 +31,9 @@ _Status: accepted stack ([0001-tech-stack](decisions/0001-tech-stack.md)); modul
 | `ui` | Editor front-end | OS APIs (goes through `app`) |
 | `cli` | Headless commands for scripts and agents | UI |
 
+Layout on disk: `crates/{core,formats,capture,cli}`, `app/` (Tauri), `ui/`; see the
+table in `AGENTS.md`.
+
 ## Key ideas
 
 - **One geometry, two painters.** The core turns every element into plain path
