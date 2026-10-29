@@ -1,6 +1,9 @@
 # 0003 — Editable save format
 
-_Status: **Proposed** · 2026-10-29_
+_Status: **Accepted** · 2026-10-29_
+
+Phasing: the first release embeds the document in PNG, JPEG and WebP; HEIF/AVIF and PDF
+follow in roadmap M6.
 
 ## Context
 
@@ -8,7 +11,7 @@ Users want one file that is (a) a normal image/PDF anyone can open and (b) still
 editable in the app. Skitch solved this by hiding its document inside the image
 (findings §3, §6). We also want to open Skitch's files.
 
-## Decision (proposed)
+## Decision
 
 - Our document is JSON (`document.json`, schema in `docs/file-format.md`, roadmap
   M1-1), versioned with a top-level `"format": "<app-id>/1"`. Resources (original

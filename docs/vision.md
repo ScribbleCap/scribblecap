@@ -61,6 +61,9 @@ designers giving feedback, anyone writing documentation.
 | PDF | ✓ (all pages) | ✓ (standard annotations + embedded document) | ✓ |
 | Skitch 1.x `.skitch` | ✓ (import) | — | — |
 
+**First release:** PNG, JPEG, WebP, TIFF, BMP, GIF. HEIF/AVIF, SVG and PDF come in the
+release after (roadmap M6).
+
 "Save editable" details: [docs/decisions/0003-save-format.md](decisions/0003-save-format.md).
 
 ## Features
@@ -74,7 +77,7 @@ designers giving feedback, anyone writing documentation.
 - Select, move, resize, recolour, delete; undo/redo.
 - Copy to clipboard, drag out, save as.
 - Capture: region, previous region, window, full screen, timed.
-- Multi-page PDF with page thumbnails.
+- Multi-page PDF with page thumbnails (after the first release).
 
 ### New, modern features (candidates — prune before v1)
 
@@ -94,6 +97,6 @@ designers giving feedback, anyone writing documentation.
 ## Success measures
 
 - Capture → annotated → copied in under 5 seconds for a practised user.
-- Opens a 20 MP photo and a 100-page PDF without stalling the UI.
+- Opens a 20 MP photo (and, once PDF lands, a 100-page PDF) without stalling the UI.
 - Files saved by the app open correctly in the default viewer on each OS.
 - Real Skitch 2.9 files open with all annotations editable.

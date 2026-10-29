@@ -1,6 +1,6 @@
 # 0004 — PDF annotation
 
-_Status: **Proposed** · 2026-10-29_
+_Status: **Accepted** · 2026-10-29 · scheduled after the first release (roadmap M6)_
 
 ## Context
 
@@ -9,7 +9,7 @@ and the result must look right in Acrobat, Preview, browsers, Okular and other v
 Skitch stored its drawing in a private `/XXSkitch` entry plus flattened appearances
 (findings §6), which other apps can't edit.
 
-## Decision (proposed)
+## Decision
 
 - **Rendering:** PDFium through `pdfium-render` (same engine as Chrome; BSD-3). Pages
   are rendered to bitmaps at the current zoom; annotations are drawn on top by our UI.
