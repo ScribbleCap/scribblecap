@@ -101,7 +101,7 @@ Marker or highlighter stroke.
 | `tool` | string | ✓ | `"marker"` or `"highlighter"`. |
 | `color` | Colour | ✓ | Stroke colour, drawn as stored (the app gives highlighters a translucent colour). |
 | `width` | number | ✓ | Stroke width. |
-| `points` | Point[] | ✓ | Input points after filtering, at least one. The smooth curve is computed from them when drawing (findings §5.4, roadmap M1-3); it is not stored. |
+| `points` | Point[] | ✓ | Input points after `geometry::filter_points`, at least one. The smooth curve is computed from them by `geometry::freehand_path` (findings §5.4); it is not stored. |
 
 ### `text`
 

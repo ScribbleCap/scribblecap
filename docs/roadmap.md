@@ -50,7 +50,7 @@ HEIF/AVIF, SVG and PDF follow after the first release (M6).
   Done when: schema documented; serialise → parse → equal for every element type.
 - [x] **M1-2 Geometry: arrow outline.** Deps: M1-1. Use findings §5.3.
   Done when: golden tests for short, normal and long arrows at all 5 sizes.
-- [ ] **M1-3 Geometry: freehand smoothing + curve fitting.** Deps: M1-1. Findings §5.4.
+- [x] **M1-3 Geometry: freehand smoothing + curve fitting.** Deps: M1-1. Findings §5.4.
   Done when: noisy input strokes produce smooth paths within tolerance; tests.
 - [ ] **M1-4 Flat renderer (tiny-skia).** Deps: M1-2, M1-3.
   Done when: golden-image tests for every element type pass on all OSes.
