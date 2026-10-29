@@ -1,0 +1,24 @@
+[workspace]
+resolver = "3"
+members = ["crates/core", "crates/formats", "crates/capture", "crates/cli", "app"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/ScribbleCap/scribblecap"
+publish = false
+
+[workspace.dependencies]
+scribblecap-core = { path = "crates/core" }
+scribblecap-formats = { path = "crates/formats" }
+scribblecap-capture = { path = "crates/capture" }
+tauri = { version = "2.12", features = [] }
+tauri-build = { version = "2.7", features = [] }
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }

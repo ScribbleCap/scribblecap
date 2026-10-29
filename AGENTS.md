@@ -43,6 +43,45 @@ inspired by the discontinued Skitch for Mac. Full picture: [docs/vision.md](docs
   `docs/decisions/0001-tech-stack.md`). Note new ones in the PR description.
 - Code must build and tests must pass on all three OSes (CI enforces this).
 
+## Repository layout
+
+| Path | What |
+|---|---|
+| `crates/core` | `scribblecap-core`: document model, geometry, flat rendering (no UI, no OS APIs) |
+| `crates/formats` | `scribblecap-formats`: image formats, embedded editable document |
+| `crates/capture` | `scribblecap-capture`: screen capture backends |
+| `crates/cli` | `scribblecap-cli`: the `scribblecap` command-line binary |
+| `app/` | `scribblecap-app`: Tauri 2 desktop shell (`tauri.conf.json`, capabilities, icons) |
+| `ui/` | Editor front-end: Vite + TypeScript, built into `ui/dist` and embedded by `app` |
+| `assets/icon/` | Icon source (`scribblecap.svg`); app icons in `app/icons/` are generated from it |
+
 ## Commands
 
-_Not set up yet — filled in by roadmap task M0-2._
+Toolchains: Rust is pinned in `rust-toolchain.toml` (rustup installs it automatically);
+Node version in `ui/.node-version`; pnpm version in `ui/package.json` (`packageManager`,
+use `corepack pnpm` if pnpm is not installed). Linux needs Tauri 2's system packages.
+
+Run from the repository root. Build the UI first: the app embeds `ui/dist`, so Rust
+builds of `app` fail until it exists.
+
+```sh
+# UI
+pnpm --dir ui install --frozen-lockfile
+pnpm --dir ui lint
+pnpm --dir ui test
+pnpm --dir ui build
+
+# Rust
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo test --workspace --locked
+
+# Run
+pnpm --dir ui tauri dev            # desktop app with hot reload
+cargo run -p scribblecap-cli -- --version
+
+# Regenerate app icons after changing assets/icon/scribblecap-1024.png
+pnpm --dir ui tauri icon ../assets/icon/scribblecap-1024.png -o ../app/icons
+```
+
+All of these must pass before a change is ready (CI runs the same list).
