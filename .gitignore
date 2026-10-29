@@ -1,0 +1,7 @@
+# Local reverse-engineering workspace, never commit (see AGENTS.md "Clean room")
+re-work/
+
+.DS_Store
+target/
+node_modules/
+dist/
