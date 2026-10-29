@@ -80,6 +80,10 @@ cargo test --workspace --locked
 # Run
 pnpm --dir ui tauri dev            # desktop app with hot reload
 cargo run -p scribblecap-cli -- --version
+cargo run -p scribblecap-core --example preview   # SVG sheet of core geometry -> target/preview/
+
+# Golden tests: after an intended geometry change, regenerate and review the preview
+SCRIBBLECAP_UPDATE_GOLDEN=1 cargo test -p scribblecap-core
 
 # Regenerate app icons after changing assets/icon/scribblecap-1024.png
 pnpm --dir ui tauri icon ../assets/icon/scribblecap-1024.png -o ../app/icons
