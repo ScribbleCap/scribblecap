@@ -88,5 +88,6 @@ fn main() {
         std::fs::create_dir_all(dir).expect("create output folder");
     }
     std::fs::write(&out, svg).expect("write preview");
-    println!("{out}");
+    let shown = std::fs::canonicalize(&out).map_or(out, |p| p.display().to_string());
+    println!("Wrote {shown}");
 }
