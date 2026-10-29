@@ -7,6 +7,8 @@ pub mod color;
 pub mod document;
 pub mod element;
 pub mod geom;
+pub mod geometry;
+pub mod path;
 
 pub use color::Color;
 pub use document::{Background, Document, LoadError, Resource, ResourceId, ValidationError};
@@ -15,6 +17,7 @@ pub use element::{
     Step, Text, TextAlign, TextStyle,
 };
 pub use geom::{Point, Rect, Size};
+pub use path::{Path, PathEl};
 
 /// Value of the top-level `"format"` key in a saved ScribbleCap document
 /// (decision 0003).

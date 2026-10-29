@@ -57,7 +57,9 @@ its kind.
 
 ### `arrow`
 
-Filled, tapered arrow (outline geometry: findings §5.3, roadmap M1-2).
+Filled, tapered arrow. The outline is computed from these keys by
+`geometry::arrow_outline` in `crates/core` (findings §5.3); arrows shorter than
+5 × `width` are drawn with a proportionally smaller size.
 
 | Key | Type | Req. | Meaning |
 |---|---|---|---|
