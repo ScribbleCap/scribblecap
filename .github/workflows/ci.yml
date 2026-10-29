@@ -51,7 +51,7 @@ jobs:
           package-manager-cache: false
 
       - name: Install pnpm from the UI packageManager field
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           package_json_file: ui/package.json
           run_install: false
