@@ -48,7 +48,7 @@ HEIF/AVIF, SVG and PDF follow after the first release (M6).
   Elements: arrow, line, rect, rounded rect, ellipse, freehand (marker/highlighter),
   text (plain/bubble/label), stamp, step counter. JSON round-trip.
   Done when: schema documented; serialise → parse → equal for every element type.
-- [ ] **M1-2 Geometry: arrow outline.** Deps: M1-1. Use findings §5.3.
+- [x] **M1-2 Geometry: arrow outline.** Deps: M1-1. Use findings §5.3.
   Done when: golden tests for short, normal and long arrows at all 5 sizes.
 - [ ] **M1-3 Geometry: freehand smoothing + curve fitting.** Deps: M1-1. Findings §5.4.
   Done when: noisy input strokes produce smooth paths within tolerance; tests.
