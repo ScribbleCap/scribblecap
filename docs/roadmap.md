@@ -54,9 +54,10 @@ HEIF/AVIF, SVG and PDF follow after the first release (M6).
   Done when: noisy input strokes produce smooth paths within tolerance; tests.
 - [ ] **M1-4 Flat renderer (tiny-skia).** Deps: M1-2, M1-3.
   Done when: golden-image tests for every element type pass on all OSes.
-- [ ] **M1-5 Read/write raster formats** (PNG, JPEG, WebP, TIFF, BMP, GIF first frame).
+- [x] **M1-5 Read/write raster formats** (PNG, JPEG, WebP, TIFF, BMP, GIF first frame).
   Done when: each opens; flat save of each verified by re-opening; EXIF orientation
   applied.
+  Implemented in `crates/formats`; API and export behavior: [raster-formats.md](raster-formats.md).
 - _M1-6 (HEIF/AVIF) and M1-7 (SVG) moved to M6._
 - [ ] **M1-8 Embed/extract editable document** in PNG, JPEG, WebP
   (decision 0003). Deps: M1-1, M1-5.
