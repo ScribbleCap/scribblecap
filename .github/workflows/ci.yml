@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux
+            runner: ubuntu-latest
+          - platform: windows
+            runner: windows-latest
+          - platform: macos
+            runner: macos-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      CARGO_TERM_COLOR: always
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            libwebkit2gtk-4.1-dev build-essential curl wget file \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Install pinned Node before bootstrapping pnpm
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ui/.node-version
+          package-manager-cache: false
+
+      - name: Install pnpm from the UI packageManager field
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: ui/package.json
+          run_install: false
+
+      - name: Install Node and cache pnpm dependencies
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ui/.node-version
+          cache: pnpm
+          cache-dependency-path: ui/pnpm-lock.yaml
+
+      - name: Install UI dependencies
+        run: pnpm --dir ui install --frozen-lockfile
+
+      - name: Lint UI
+        run: pnpm --dir ui lint
+
+      - name: Test UI
+        run: pnpm --dir ui test
+
+      - name: Build UI for the Tauri app
+        run: pnpm --dir ui build
+
+      - name: Install pinned Rust toolchain
+        run: rustup show
+
+      - name: Cache Rust dependencies and build output
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check Rust formatting
+        run: cargo fmt --all -- --check
+
+      - name: Lint Rust
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Test Rust
+        run: cargo test --workspace --locked
