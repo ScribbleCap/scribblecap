@@ -44,7 +44,7 @@ HEIF/AVIF, SVG and PDF follow after the first release (M6).
 
 ## M1 — Document model and file formats (no UI)
 
-- [ ] **M1-1 Write `docs/file-format.md` and implement the document model in `core`.**
+- [x] **M1-1 Write `docs/file-format.md` and implement the document model in `core`.**
   Elements: arrow, line, rect, rounded rect, ellipse, freehand (marker/highlighter),
   text (plain/bubble/label), stamp, step counter. JSON round-trip.
   Done when: schema documented; serialise → parse → equal for every element type.
