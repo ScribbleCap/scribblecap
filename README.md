@@ -17,8 +17,7 @@ and PDFs on Linux, Windows and macOS.
   highlighter, stamps, step numbers, pixelate and redact.
 - **Share** by copying, dragging out or saving. Saved files stay ordinary images that
   open anywhere, and they reopen in ScribbleCap still editable.
-- **Opens** PNG, JPEG, WebP, TIFF, BMP and GIF, plus files from the discontinued
-  Skitch app.
+- **Opens** PNG, JPEG, WebP, TIFF, BMP and GIF.
 - **Coming after the first release:** HEIF/HEIC, AVIF, SVG, and PDF markup with standard
   annotations that show up in Acrobat, Preview and browsers.
 - **Scriptable**: a command-line mode for scripts, CI and AI agents.

@@ -30,8 +30,8 @@ editable in the app. Skitch solved this by hiding its document inside the image
 - The **original, un-annotated background** is stored as a resource so annotations can
   be moved or removed later (pixelate/redact intentionally replace the stored original,
   so redacted data can't be recovered).
-- **Reading Skitch files**: detect Skitch markers and convert Skitch's JSON to ours on
-  load. We never write Skitch's format.
+- **Skitch files** (later, see roadmap "Later"): we may read Skitch's hidden data to
+  make old Skitch annotations editable. We never write Skitch's format.
 
 ## Consequences
 

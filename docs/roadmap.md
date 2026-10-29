@@ -12,12 +12,30 @@ Legend: `[ ]` todo · `[~]` in progress (put your branch name) · `[x]` done
   All four accepted 2026-10-29; name **ScribbleCap**; GitHub org `ScribbleCap` and crate
   `scribblecap` claimed. No formal trademark search done (web search found no conflict;
   no plan to register a trademark).
-- [ ] **M0-2 Repository scaffold.** Deps: M0-1.
+- [ ] **M0-2 Repository scaffold.** Deps: M0-1. Must provide the commands listed in M0-3.
   Cargo workspace with `core`, `formats`, `capture`, `cli`, `app` (Tauri 2), `ui`
   (`pdf` is added in M6); `AGENTS.md` "Commands" section filled in.
   Done when: `build`, `test`, `lint` commands documented and passing locally.
-- [ ] **M0-3 CI on Linux, Windows, macOS.** Deps: M0-2.
-  Done when: every PR runs build + tests + lint on all three; failing CI blocks merge.
+- [ ] **M0-3 CI on Linux, Windows, macOS.** Can run **in parallel with M0-2**; merges
+  after it (rebase onto M0-2, then confirm a green run).
+  Scope: only files under `.github/` (workflows, dependabot). Do not edit other files.
+  Contract with M0-2 (the scaffold provides exactly these):
+  - Rust toolchain pinned in `rust-toolchain.toml`; Node version in `ui/.node-version`;
+    pnpm version in `ui/package.json` `packageManager`.
+  - Order: UI first (the Tauri app embeds `ui/dist`), then Rust.
+    1. `pnpm --dir ui install --frozen-lockfile`
+    2. `pnpm --dir ui lint` · `pnpm --dir ui test` · `pnpm --dir ui build`
+    3. `cargo fmt --all -- --check`
+    4. `cargo clippy --workspace --all-targets --locked -- -D warnings`
+    5. `cargo test --workspace --locked`
+  - Linux runner needs Tauri 2's system packages (WebKitGTK 4.1 etc.; see Tauri's
+    "Prerequisites" page for Linux/Debian).
+  - Workflow `.github/workflows/ci.yml`, runs on pull requests and pushes to `main`;
+    jobs on `ubuntu-latest`, `windows-latest`, `macos-latest` with check names
+    **`linux`**, **`windows`**, **`macos`** (the branch ruleset will require these
+    names); Rust and pnpm caching.
+  Done when: all three checks pass on the M0-2 scaffold; the maintainer adds the three
+  checks + "require pull request" to the `main` ruleset.
 
 ## First release scope
 
@@ -44,11 +62,7 @@ HEIF/AVIF, SVG and PDF follow after the first release (M6).
   (decision 0003). Deps: M1-1, M1-5.
   Done when: round-trip tests; files still open in the default viewer of each OS
   (manual check listed in PR).
-- [ ] **M1-9 Skitch fixtures.** _Owner: maintainer (needs Skitch 2.9 under Rosetta)._
-  Save sample PNG/JPEG/HEIC/PDF/1.x files into `tests/fixtures/skitch/` with a README of
-  what each contains.
-- [ ] **M1-10 Skitch import** (PNG/JPEG; HEIC in M6-1). Deps: M1-8, M1-9. Findings §3–4.
-  Done when: every fixture opens with all elements editable and matching visually.
+- _M1-9 / M1-10 (re-editing files saved by Skitch) moved to Later._
 
 ## M2 — Editor MVP (images)
 
@@ -86,12 +100,11 @@ HEIF/AVIF, SVG and PDF follow after the first release (M6).
 - [ ] **M5-2 Settings**, light/dark theme, HiDPI checks.
 - [ ] **M5-3 Accessibility pass** (keyboard-only, screen-reader labels).
 - [ ] **M5-4 CLI**: `annotate`, `render`, `convert` with docs and examples.
-- [ ] **M5-5 Skitch 1.x `.skitch` import** (findings §7).
 
 ## M6 — After first release: HEIF/AVIF, SVG, PDF
 
 - [ ] **M6-1 HEIF/AVIF read/write** (was M1-6), including embedding the editable
-  document in a `uuid` box (decision 0003) and Skitch HEIC import. Decide OS decoder vs
+  document in a `uuid` box (decision 0003). Decide OS decoder vs
   libheif per platform (write a decision record). Done when: open + save works on all
   three OSes or the gap is documented.
 - [ ] **M6-2 SVG as background** (was M1-7, resvg). Done when: SVG opens at chosen DPI,
@@ -107,9 +120,14 @@ PDF annotation (was M3, decision 0004). Adds the `pdf` crate.
 - [ ] **M6-6 Real redaction** removes underlying text/images. Done when: text
   extraction of the redacted area returns nothing.
 - [ ] **M6-7 Open PDFs annotated by other apps** (editable standard annotations).
-- [ ] **M6-8 Skitch PDF import** (`/XXSkitch`). Deps: M1-9. Findings §6.
 
 ## Later (not scheduled)
+
+- **Re-edit files saved by Skitch.** Skitch 2.x saved ordinary PNG/JPEG/HEIC/PDF files
+  with its editable drawing hidden inside (findings §3–4, §6); reading that data would
+  let those annotations be edited again. Plus Skitch 1.x `.skitch` (SVG) import
+  (findings §7). Needs sample files saved by Skitch 2.9. Low priority: few such files
+  are likely still around.
 
 OCR copy-text, auto-redact suggestions, spotlight and magnifier, emoji/custom stamps,
 snap guides, GIF/video capture, mobile.

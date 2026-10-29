@@ -32,7 +32,8 @@ designers giving feedback, anyone writing documentation.
 - **Editable-but-normal files:** annotations are stored inside the PNG/JPEG/HEIF/PDF so
   the file is still viewable everywhere and re-editable in the app.
 - **PDF annotation** that other PDF viewers can see (standard PDF annotations).
-- **Opens old Skitch files** (Skitch 2.x PNG/JPEG/HEIC/PDF, Skitch 1.x `.skitch`).
+- **Re-edit later:** ScribbleCap's own annotations stay editable after saving, inside the
+  normal image file (no separate project file needed).
 - Scriptable: a CLI that applies annotations from a JSON file, so other tools and AI
   agents can produce annotated screenshots.
 
@@ -59,7 +60,6 @@ designers giving feedback, anyone writing documentation.
 | GIF | ✓ (first frame) | — | ✓ |
 | SVG | ✓ (rendered as background) | — | ✓ as PNG |
 | PDF | ✓ (all pages) | ✓ (standard annotations + embedded document) | ✓ |
-| Skitch 1.x `.skitch` | ✓ (import) | — | — |
 
 **First release:** PNG, JPEG, WebP, TIFF, BMP, GIF. HEIF/AVIF, SVG and PDF come in the
 release after (roadmap M6).
@@ -99,4 +99,3 @@ release after (roadmap M6).
 - Capture → annotated → copied in under 5 seconds for a practised user.
 - Opens a 20 MP photo (and, once PDF lands, a 100-page PDF) without stalling the UI.
 - Files saved by the app open correctly in the default viewer on each OS.
-- Real Skitch 2.9 files open with all annotations editable.

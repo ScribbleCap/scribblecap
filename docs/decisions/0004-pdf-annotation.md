@@ -32,8 +32,8 @@ Skitch stored its drawing in a private `/XXSkitch` entry plus flattened appearan
 - **Re-saving** replaces our previous update instead of stacking new ones when the file
   has not been changed by another app since.
 - **Opening:** load our document if present; else read standard annotations we
-  understand (so PDFs annotated in other apps can be edited); else read Skitch's
-  `/XXSkitch` DOM.
+  understand (so PDFs annotated in other apps can be edited). Reading Skitch's
+  `/XXSkitch` data is a possible later addition (roadmap "Later").
 - Text and page content of the PDF itself are never edited (non-goal).
 
 ## Consequences
