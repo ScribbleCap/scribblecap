@@ -15,6 +15,7 @@ inspired by the discontinued Skitch for Mac. Full picture: [docs/vision.md](docs
 | Why / what / what not | [docs/vision.md](docs/vision.md) |
 | What to work on next | [docs/roadmap.md](docs/roadmap.md) |
 | How the code is organized | [docs/architecture.md](docs/architecture.md) |
+| Editable document format (JSON schema) | [docs/file-format.md](docs/file-format.md) |
 | Why a decision was made | [docs/decisions/](docs/decisions/) |
 | How Skitch behaved (formats, constants, geometry) | [docs/reverse-engineering/findings.md](docs/reverse-engineering/findings.md) |
 
