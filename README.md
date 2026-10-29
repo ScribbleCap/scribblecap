@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/icon/scribblecap-256.png" alt="ScribbleCap icon" width="128" height="128">
+</p>
+
 # ScribbleCap
 
 **Capture, scribble, share.** A fast, open-source app to annotate screenshots, images
