@@ -12,14 +12,15 @@ and PDFs on Linux, Windows and macOS.
 
 ## What it will do
 
-- **Capture** a region, window or the whole screen, or open any image or PDF.
+- **Capture** a region, window or the whole screen, or open an existing image.
 - **Annotate** with arrows, lines, shapes, text and speech bubbles, marker,
   highlighter, stamps, step numbers, pixelate and redact.
-- **Share** by copying, dragging out or saving. Saved files stay ordinary images and
-  PDFs that open anywhere, and they reopen in ScribbleCap still editable.
-- **PDF markup** with standard annotations that show up in Acrobat, Preview and browsers.
-- **Opens** PNG, JPEG, HEIF/HEIC, AVIF, WebP, TIFF, BMP, GIF, SVG and PDF, plus files
-  from the discontinued Skitch app.
+- **Share** by copying, dragging out or saving. Saved files stay ordinary images that
+  open anywhere, and they reopen in ScribbleCap still editable.
+- **Opens** PNG, JPEG, WebP, TIFF, BMP and GIF, plus files from the discontinued
+  Skitch app.
+- **Coming after the first release:** HEIF/HEIC, AVIF, SVG, and PDF markup with standard
+  annotations that show up in Acrobat, Preview and browsers.
 - **Scriptable**: a command-line mode for scripts, CI and AI agents.
 
 See [docs/vision.md](docs/vision.md) for goals and non-goals.

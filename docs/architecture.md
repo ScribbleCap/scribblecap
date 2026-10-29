@@ -25,7 +25,7 @@ _Status: accepted stack ([0001-tech-stack](decisions/0001-tech-stack.md)); modul
 |---|---|---|
 | `core` | Document model, JSON (de)serialisation, undo history, **geometry** (arrow outline, freehand smoothing + curve fit, shapes, text layout boxes), flat rendering for export (tiny-skia) | UI, OS APIs |
 | `formats` | Read/write images (PNG, JPEG, HEIF/AVIF, WebP, TIFF, BMP, GIF, SVG→raster), embed/extract the editable document, Skitch import | UI, OS APIs |
-| `pdf` | Render PDF pages, write standard annotations + embedded document as an incremental update, read Skitch PDFs | UI, OS APIs |
+| `pdf` (added in M6) | Render PDF pages, write standard annotations + embedded document as an incremental update, read Skitch PDFs | UI, OS APIs |
 | `capture` | Screen/window/region capture, one backend per OS | UI |
 | `app` | Tauri shell: windows, menus, clipboard, drag-and-drop, settings, hotkeys | — |
 | `ui` | Editor front-end | OS APIs (goes through `app`) |

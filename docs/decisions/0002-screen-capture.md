@@ -1,6 +1,6 @@
 # 0002 — Screen capture per platform
 
-_Status: **Proposed** · 2026-10-29_
+_Status: **Accepted** · 2026-10-29_
 
 ## Context
 
@@ -13,7 +13,7 @@ Capture is the only part that cannot be shared code. Each OS restricts it differ
 | Linux X11 | XGetImage / XComposite | Full access |
 | Linux Wayland | `xdg-desktop-portal` Screenshot / ScreenCast | The user confirms in a system dialog; **no silent capture, no global hotkeys by default** (use the portal GlobalShortcuts where available, else tell users to bind a desktop shortcut to `app capture`) |
 
-## Decision (proposed)
+## Decision
 
 - A `capture` crate with one trait (`capture_region`, `capture_window`,
   `capture_screen`, `list_windows`) and one backend per OS, picked at runtime.
