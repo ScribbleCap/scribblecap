@@ -40,6 +40,10 @@ table in `AGENTS.md`.
   commands. The UI paints those paths with Canvas 2D for live editing; export paints the
   same paths with tiny-skia. Because both draw identical paths, on-screen and exported
   output match without two implementations of each tool.
+  M1-4a exposes `geometry::shape_paths` (paths plus fill/stroke instructions) and
+  `render::render` (tiny-skia to straight RGBA8). Background pixels are decoded by
+  the caller, keeping core independent of formats. Text and step-number paths are
+  deferred to M1-4b and currently return explicit errors. Details: [rendering.md](rendering.md).
 - **Document = JSON tree** (layers → elements), close to Skitch's model (findings §4),
   which keeps a later Skitch re-edit feature simple. Every element also stores a ready-to-draw `path`, so
   older or simpler readers can render elements they don't understand.
