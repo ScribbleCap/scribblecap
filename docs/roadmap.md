@@ -12,7 +12,7 @@ Legend: `[ ]` todo · `[~]` in progress (put your branch name) · `[x]` done
   All four accepted 2026-10-29; name **ScribbleCap**; GitHub org `ScribbleCap` and crate
   `scribblecap` claimed. No formal trademark search done (web search found no conflict;
   no plan to register a trademark).
-- [ ] **M0-2 Repository scaffold.** Deps: M0-1. Must provide the commands listed in M0-3.
+- [x] **M0-2 Repository scaffold.** Deps: M0-1. Must provide the commands listed in M0-3.
   Cargo workspace with `core`, `formats`, `capture`, `cli`, `app` (Tauri 2), `ui`
   (`pdf` is added in M6); `AGENTS.md` "Commands" section filled in.
   Done when: `build`, `test`, `lint` commands documented and passing locally.

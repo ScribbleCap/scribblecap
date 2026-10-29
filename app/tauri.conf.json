@@ -1,0 +1,30 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "ScribbleCap",
+  "identifier": "io.github.scribblecap",
+  "build": {
+    "frontendDist": "../ui/dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": { "script": "pnpm dev", "cwd": "../ui" },
+    "beforeBuildCommand": { "script": "pnpm build", "cwd": "../ui" }
+  },
+  "app": {
+    "windows": [
+      { "label": "main", "title": "ScribbleCap", "width": 1100, "height": 760 }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost data: blob:; style-src 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

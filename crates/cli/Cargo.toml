@@ -1,0 +1,20 @@
+[package]
+name = "scribblecap-cli"
+description = "ScribbleCap command line: annotate, render and convert without the UI"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "scribblecap"
+path = "src/main.rs"
+
+[dependencies]
+scribblecap-core.workspace = true
+scribblecap-formats.workspace = true
+
+[lints]
+workspace = true
