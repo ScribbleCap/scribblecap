@@ -1,6 +1,4 @@
-// Editor UI entry point. The editor itself arrives in roadmap M2.
-
-const app = document.querySelector<HTMLElement>("#app");
-if (app) {
-  app.textContent = "ScribbleCap";
-}
+import { mount } from 'svelte';
+import App from './App.svelte';
+import './style.css';
+mount(App, { target: document.getElementById('app')! });
