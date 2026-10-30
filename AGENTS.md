@@ -81,6 +81,7 @@ cargo test --workspace --locked
 pnpm --dir ui tauri dev            # desktop app with hot reload
 cargo run -p scribblecap-cli -- --version
 cargo run -p scribblecap-core --example preview   # SVG sheet of core geometry -> target/preview/
+cargo run -p scribblecap-capture --example capture -- list   # also: displays, screen, window <id>, region x y w h
 
 # Golden tests: after an intended geometry change, regenerate and review the preview
 SCRIBBLECAP_UPDATE_GOLDEN=1 cargo test -p scribblecap-core
