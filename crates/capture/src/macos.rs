@@ -109,14 +109,21 @@ impl Capturer for MacCapturer {
             .iter()
             .find(|w| unsafe { w.windowID() } == id)
             .ok_or(CaptureError::NotFound)?;
+        // The window's own frame and the scale of the display it is mostly on.
+        // (`infoForFilter` would give the same, but asserts without a window-server
+        // connection, e.g. in a command-line process.)
+        // SAFETY: plain property reads on valid objects.
+        let frame = rect(unsafe { window.frame() });
+        let displays: Vec<DisplayInfo> = unsafe { content.displays() }
+            .iter()
+            .map(|d| display_info(&d))
+            .collect();
+        let scale = region_on_display(&frame, &displays).map_or(1.0, |(d, _)| d.scale);
         // SAFETY: `window` comes from the current shareable content.
         let filter = unsafe {
             SCContentFilter::initWithDesktopIndependentWindow(SCContentFilter::alloc(), &window)
         };
-        // SAFETY: infoForFilter (macOS 14+, checked in `new`) on a valid filter.
-        let info = unsafe { SCShareableContent::infoForFilter(&filter) };
-        let (frame, scale) = unsafe { (info.contentRect(), f64::from(info.pointPixelScale())) };
-        let config = configuration(frame.size.width, frame.size.height, scale);
+        let config = configuration(frame.width, frame.height, scale);
         capture(&filter, &config, scale)
     }
 
@@ -263,7 +270,16 @@ fn configuration(width: f64, height: f64, scale: f64) -> Retained<SCStreamConfig
     }
 }
 
-/// Normal app windows that are on screen, have a size, and aren't ours.
+/// macOS helpers whose windows sit on the normal layer but aren't app windows.
+const SYSTEM_APPS: [&str; 4] = [
+    "com.apple.WindowManager",
+    "com.apple.dock",
+    "com.apple.controlcenter",
+    "com.apple.notificationcenterui",
+];
+
+/// Normal app windows that are on screen, have a size, and aren't ours or the
+/// system's.
 fn is_listed(window: &SCWindow) -> bool {
     let own = std::process::id() as i32;
     // SAFETY: plain property reads on a valid SCWindow.
@@ -273,9 +289,10 @@ fn is_listed(window: &SCWindow) -> bool {
             && window.windowLayer() == 0
             && frame.size.width > 1.0
             && frame.size.height > 1.0
-            && window
-                .owningApplication()
-                .is_some_and(|a| a.processID() != own)
+            && window.owningApplication().is_some_and(|a| {
+                a.processID() != own
+                    && !SYSTEM_APPS.contains(&a.bundleIdentifier().to_string().as_str())
+            })
     }
 }
 
