@@ -11,6 +11,7 @@ publish.workspace = true
 [dependencies]
 scribblecap-core.workspace = true
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "webp", "tiff", "bmp", "gif"] }
+crc32fast = "1.5"
 
 [lints]
 workspace = true

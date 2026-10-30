@@ -6,7 +6,8 @@ _Status: version 1, 2026-10-29. Implemented in `crates/core` (`Document::from_js
 The editable document is one JSON object. Container formats (PNG, JPEG, WebP, later
 HEIF/AVIF and PDF) store it next to the flattened image, together with the binary
 resources it lists ([decision 0003](decisions/0003-save-format.md)). This page
-describes the JSON only; how each container embeds it is specified in roadmap M1-8.
+describes the JSON only; [editable-containers.md](editable-containers.md) specifies
+the PNG/JPEG/WebP envelope and resource bytes (roadmap M1-8).
 
 This is ScribbleCap's own format. It is **not** Skitch's `index.json`; reading Skitch
 files is a separate, later task.

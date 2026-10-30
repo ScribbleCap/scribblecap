@@ -52,7 +52,8 @@ process memory may exceed that figure.
 Input bit depths and channel layouts are normalized to RGBA8. No ICC profile
 conversion is performed. Metadata, animation, extra TIFF pages and hidden payloads
 are not copied into flat output. Callers that want to preserve editability must use
-the future M1-8 container API, rather than treating a flat export as an editable save.
+the M1-8 `encode_editable` API described in [editable-containers.md](editable-containers.md),
+rather than treating a flat export as an editable save.
 
 ## Verification
 
