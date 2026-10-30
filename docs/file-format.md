@@ -47,6 +47,9 @@ All numbers must be finite. Widths, diameters and font sizes must be greater tha
 | `resources` | array | | Binary resources stored by the container: `{"id", "mediaType"}` (`mediaType` is a MIME type such as `image/png`). Default empty. |
 | `elements` | array | | Annotations, painted in order (first = bottom-most). Default empty. |
 
+The flat renderer rounds fractional canvas extents up to whole output pixels.
+Its supported elements and pixel interchange are described in [rendering.md](rendering.md).
+
 Pixelate and redact are **not** elements: they are burned into the background resource
 when applied, so the hidden pixels are not recoverable from the file.
 
