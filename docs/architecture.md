@@ -27,6 +27,13 @@ _Status: accepted stack ([0001-tech-stack](decisions/0001-tech-stack.md)); modul
 | `formats` | Read/write images (PNG, JPEG, HEIF/AVIF, WebP, TIFF, BMP, GIF, SVG→raster), embed/extract the editable document | UI, OS APIs |
 | `pdf` (added in M6) | Render PDF pages, write standard annotations + embedded document as an incremental update | UI, OS APIs |
 | `capture` | Screen/window/region capture, one backend per OS | UI |
+
+`capture` exposes one `Capturer` trait (`list_windows`, `displays`, `capture_screen`,
+`capture_window`, `capture_region`) in desktop points; images come back as sRGB RGBA8
+with the display's scale factor. Backends: macOS uses ScreenCaptureKit's
+`SCScreenshotManager`, so capture needs **macOS 14+** (decision 0002 said 12.3+; the
+one-shot screenshot API arrived in 14). It is the only module allowed `unsafe`
+(Objective-C calls), each block with a `SAFETY` note.
 | `app` | Tauri shell: windows, menus, clipboard, drag-and-drop, settings, hotkeys | — |
 | `ui` | Editor front-end | OS APIs (goes through `app`) |
 | `cli` | Headless commands for scripts and agents | UI |
