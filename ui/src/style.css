@@ -1,11 +1,42 @@
-:root {
-  color-scheme: light dark;
-  font-family: system-ui, sans-serif;
-}
-
-body {
-  margin: 0;
-  display: grid;
-  place-items: center;
-  min-height: 100vh;
-}
+:root { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #242737; background: #f8f9fb; font-synthesis: none; text-rendering: optimizeLegibility; }
+* { box-sizing: border-box; }
+body { margin: 0; overflow: hidden; }
+button { font: inherit; font-size: 12px; font-weight: 550; color: #424759; border: 1px solid #dce0e8; background: #fff; border-radius: 7px; min-height: 32px; padding: 0 12px; cursor: pointer; white-space: nowrap; }
+button:hover:not(:disabled) { border-color: #b7bfce; background: #f5f6fa; }
+button:focus-visible, .viewport:focus-visible { outline: 3px solid #df6b8a; outline-offset: -3px; }
+button:disabled { opacity: .4; cursor: default; }
+button.primary { color: #fff; background: #d83160; border-color: #d83160; }
+button.primary:hover:not(:disabled) { background: #bd234e; border-color: #bd234e; }
+button.primary span { font-size: 18px; margin-right: 5px; font-weight: 400; }
+main { height: 100dvh; display: flex; flex-direction: column; min-width: 320px; }
+.toolbar { display: flex; gap: 22px; align-items: center; padding: 13px 20px; background: #fff; border-bottom: 1px solid #dfe2e9; flex-shrink: 0; }
+.brand { display: flex; gap: 8px; align-items: center; font-size: 14px; letter-spacing: -.3px; }
+.brand-mark { display: block; width: 28px; height: 28px; border-radius: 7px; }
+.input-actions, .zoom-actions { display: flex; gap: 7px; align-items: center; }
+.zoom-actions { margin-left: auto; gap: 3px; }
+.zoom-actions button { border-color: transparent; background: transparent; }
+.square { width: 32px; padding: 0; font-size: 19px; }
+.zoom-value { min-width: 62px; font-variant-numeric: tabular-nums; }
+.divider { width: 1px; height: 18px; background: #e1e4ea; margin: 0 6px; }
+.workspace { position: relative; flex: 1; min-height: 0; background: #f3f4f8; }
+.workspace.has-image { background: #2e3340; }
+.viewport { width: 100%; height: 100%; overflow: hidden; touch-action: none; user-select: none; outline: none; position: relative; }
+.has-image .viewport { cursor: grab; }
+.has-image .viewport.dragging { cursor: grabbing; }
+canvas { width: 100%; height: 100%; display: block; }
+.empty-state { display: flex; align-items: center; flex-direction: column; justify-content: center; min-height: 100%; padding: 35px 20px; text-align: center; }
+.empty-art { color: #b9c1d0; margin-bottom: 16px; }
+h1 { font-size: 22px; letter-spacing: -.7px; font-weight: 600; margin: 0 0 12px; }
+.empty-state p { font-size: 14px; line-height: 1.7; margin: 0 0 25px; color: #787e90; }
+.large { padding: 0 22px; min-height: 38px; font-size: 13px; }
+.formats { color: #969caf; font-size: 10px; letter-spacing: .7px; margin-top: 22px; }
+footer { flex-shrink: 0; min-height: 31px; display: flex; gap: 18px; align-items: center; padding: 7px 18px; border-top: 1px solid #dfe2e9; background: #fff; font-size: 10px; color: #8a91a2; }
+.file-info { color: #606778; max-width: 35%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dimensions { font-variant-numeric: tabular-nums; white-space: nowrap; }
+#viewport-help { margin-left: auto; text-align: right; }
+.error { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 8px 18px; color: #962145; background: #fff0f4; font-size: 12px; border-bottom: 1px solid #f2c8d4; }
+.error button { border: 0; background: transparent; font-size: 20px; min-width: 32px; }
+.loading { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); padding: 8px 16px; border: 1px solid #dfe2e9; border-radius: 20px; background: #fff; color: #666d7e; font-size: 12px; box-shadow: 0 3px 15px #0001; pointer-events: none; }
+.file-input { display: none; }
+@media (max-width: 720px) { .toolbar { gap: 10px; padding: 10px; } .brand strong { display: none; } .input-actions { gap: 5px; } button { padding: 0 9px; } footer { gap: 10px; padding: 7px 10px; } #viewport-help { display: none; } .file-info { max-width: 65%; } }
+@media (max-width: 420px) { .brand { display: none; } .toolbar { flex-wrap: wrap; gap: 6px; } .zoom-actions { margin-left: auto; } .zoom-value { min-width: 50px; } .empty-state h1 { font-size: 18px; } }

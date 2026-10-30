@@ -10,7 +10,7 @@
   },
   "app": {
     "windows": [
-      { "label": "main", "title": "ScribbleCap", "width": 1100, "height": 760 }
+      { "label": "main", "title": "ScribbleCap", "width": 1100, "height": 760, "minWidth": 640, "minHeight": 480 }
     ],
     "security": {
       "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost data: blob:; style-src 'self'"

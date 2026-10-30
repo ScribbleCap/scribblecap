@@ -61,7 +61,8 @@ HEIF/AVIF, SVG and PDF follow after the first release (M6).
     API and verification: [rendering.md](rendering.md).
   - [ ] **M1-4b Text and step numbers**: deterministic bundled fonts and text layout,
     plain/bubble/label text and numbered circles, with golden images. Requires a
-    text-rendering decision (0006 reserved); M1-4 remains incomplete until both land.
+    text-rendering decision; M1-4 remains incomplete until both land. Decision 0006
+    is allocated to the UI framework.
 - [x] **M1-5 Read/write raster formats** (PNG, JPEG, WebP, TIFF, BMP, GIF first frame).
   Done when: each opens; flat save of each verified by re-opening; EXIF orientation
   applied.
@@ -75,7 +76,9 @@ HEIF/AVIF, SVG and PDF follow after the first release (M6).
 
 ## M2 — Editor MVP (images)
 
-- [ ] **M2-1 App shell**: open file, paste image from clipboard, window, zoom/pan.
+- [x] **M2-1 App shell**: open file, paste image from clipboard,
+  window, zoom/pan. Framework: [decision 0006](decisions/0006-ui-framework.md).
+  Behavior and validation: [app-shell.md](app-shell.md).
 - [ ] **M2-2 Tools**: arrow, line, rect, rounded rect, ellipse. Selection, move, resize,
   delete. Deps: M1-4.
 - [ ] **M2-3 Marker and highlighter.** Deps: M1-3.
