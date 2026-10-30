@@ -54,6 +54,14 @@ HEIF/AVIF, SVG and PDF follow after the first release (M6).
   Done when: noisy input strokes produce smooth paths within tolerance; tests.
 - [ ] **M1-4 Flat renderer (tiny-skia).** Deps: M1-2, M1-3.
   Done when: golden-image tests for every element type pass on all OSes.
+  Split into:
+  - [x] **M1-4a Shapes and vector stamps**: arrow, line,
+    rectangle/rounded rectangle, ellipse, marker/highlighter and original vector
+    stamps; background compositing, clipping, alpha conversion and golden images.
+    API and verification: [rendering.md](rendering.md).
+  - [ ] **M1-4b Text and step numbers**: deterministic bundled fonts and text layout,
+    plain/bubble/label text and numbered circles, with golden images. Requires a
+    text-rendering decision (0006 reserved); M1-4 remains incomplete until both land.
 - [x] **M1-5 Read/write raster formats** (PNG, JPEG, WebP, TIFF, BMP, GIF first frame).
   Done when: each opens; flat save of each verified by re-opening; EXIF orientation
   applied.

@@ -9,6 +9,7 @@ pub mod element;
 pub mod geom;
 pub mod geometry;
 pub mod path;
+pub mod render;
 
 pub use color::Color;
 pub use document::{Background, Document, LoadError, Resource, ResourceId, ValidationError};
