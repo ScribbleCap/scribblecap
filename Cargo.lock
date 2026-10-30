@@ -2719,6 +2719,7 @@ dependencies = [
 name = "scribblecap-formats"
 version = "0.1.0"
 dependencies = [
+ "crc32fast",
  "image",
  "scribblecap-core",
 ]

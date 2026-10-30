@@ -36,6 +36,8 @@ Legend: `[ ]` todo · `[~]` in progress (put your branch name) · `[x]` done
     names); Rust and pnpm caching.
   Done when: all three checks pass on the M0-2 scaffold; the maintainer adds the three
   checks + "require pull request" to the `main` ruleset.
+  CI is implemented and green. Remaining: require pull requests and the three
+  checks in the `main` ruleset (currently only deletion/force-push protection).
 
 ## First release scope
 
@@ -67,10 +69,12 @@ HEIF/AVIF, SVG and PDF follow after the first release (M6).
   applied.
   Implemented in `crates/formats`; API and export behavior: [raster-formats.md](raster-formats.md).
 - _M1-6 (HEIF/AVIF) and M1-7 (SVG) moved to M6._
-- [ ] **M1-8 Embed/extract editable document** in PNG, JPEG, WebP
+- [~] **M1-8 Embed/extract editable document** (`m1-8-editable-containers`) in PNG, JPEG, WebP
   (decision 0003). Deps: M1-1, M1-5.
   Done when: round-trip tests; files still open in the default viewer of each OS
   (manual check listed in PR).
+  Implementation and local tests are ready; cross-platform CI and default-viewer
+  checks remain. API/wire format: [editable-containers.md](editable-containers.md).
 - _M1-9 / M1-10 (re-editing files saved by Skitch) moved to Later._
 
 ## M2 — Editor MVP (images)
