@@ -91,7 +91,7 @@ HEIF/AVIF, SVG and PDF follow after the first release (M6).
 
 ## M4 — Capture (decision 0002)
 
-- [ ] **M4-1 `capture` trait + macOS backend** (ScreenCaptureKit).
+- [x] **M4-1 `capture` trait + macOS backend** (ScreenCaptureKit, macOS 14+).
 - [ ] **M4-2 Windows backend** (Windows.Graphics.Capture).
 - [ ] **M4-3 Linux X11 backend.**
 - [ ] **M4-4 Linux Wayland backend** (xdg-desktop-portal).
