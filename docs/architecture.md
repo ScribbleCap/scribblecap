@@ -35,7 +35,7 @@ with the display's scale factor. Backends: macOS uses ScreenCaptureKit's
 one-shot screenshot API arrived in 14). It is the only module allowed `unsafe`
 (Objective-C calls), each block with a `SAFETY` note.
 | `app` | Tauri shell: windows, menus, clipboard, drag-and-drop, settings, hotkeys | — |
-| `ui` | Editor front-end | OS APIs (goes through `app`) |
+| `ui` | Svelte 5/TypeScript editor front-end, Canvas 2D viewport | OS APIs (goes through `app`) |
 | `cli` | Headless commands for scripts and agents | UI |
 
 Layout on disk: `crates/{core,formats,capture,cli}`, `app/` (Tauri), `ui/`; see the
@@ -68,6 +68,11 @@ table in `AGENTS.md`.
    embeds the JSON document (when the format supports it).
 
 ## Testing
+
+M2-1's shell uses native Rust image-input commands and a versioned RGBA packet,
+with Svelte owning input state and viewport transforms. No image/geometry logic
+is duplicated in the UI. See [app-shell.md](app-shell.md) and
+[decision 0006](decisions/0006-ui-framework.md).
 
 - `core`, `formats`, `pdf`: unit tests + golden-image tests (render → compare PNG).
 - Round-trip tests: open → save → open gives an identical document, for every format.
