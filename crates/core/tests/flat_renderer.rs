@@ -140,6 +140,81 @@ fn cases() -> Vec<(&'static str, Document)> {
             .collect()),
         ),
     ];
+    for (name, style) in [
+        ("text_plain", TextStyle::Plain),
+        ("text_bubble", TextStyle::Bubble),
+        ("text_label", TextStyle::Label),
+    ] {
+        let mut document = doc(vec![rectangle(
+            Rect::new(0.0, 0.0, 192.0, 144.0),
+            Color::rgb(225, 232, 240),
+        )]);
+        document.elements.push(Element {
+            id: ElementId::from("text"),
+            shape: Shape::Text(Text {
+                origin: Point::new(15.0, 12.0),
+                text: "Office café\nClick here first!".into(),
+                style,
+                color: Color::rgb(20, 60, 120),
+                font_size: 22.0,
+                font: None,
+                wrap_width: Some(150.0),
+                align: TextAlign::Center,
+                attached_to: (style == TextStyle::Label).then(|| ElementId::from("element-0")),
+            }),
+        });
+        cases.push((name, document));
+    }
+    cases.push((
+        "steps",
+        doc([1, 12, 999, u32::MAX]
+            .into_iter()
+            .enumerate()
+            .map(|(i, number)| {
+                Shape::Step(Step {
+                    center: Point::new(49.0 + (i % 2) as f64 * 94.0, 35.0 + (i / 2) as f64 * 73.0),
+                    number,
+                    color: if i % 2 == 0 {
+                        blue
+                    } else {
+                        Color::rgb(255, 220, 80)
+                    },
+                    diameter: 60.0,
+                })
+            })
+            .collect()),
+    ));
+    let mut typography = Document::new(Size::new(380.0, 240.0));
+    for (i, (size, content)) in [
+        (12.0, "AV office café"),
+        (16.0, "Ελληνικά Русский"),
+        (24.0, "naïve e\u{301} ﬁ"),
+        (36.0, "White text"),
+        (48.0, "Scribble"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        typography.elements.push(Element {
+            id: ElementId(format!("type-{i}")),
+            shape: Shape::Text(Text {
+                origin: Point::new(12.5, [4.0, 28.0, 57.0, 95.0, 154.0][i]),
+                text: content.into(),
+                style: TextStyle::Plain,
+                color: if i == 3 {
+                    Color::rgb(255, 255, 255)
+                } else {
+                    Color::rgba(30, 85, 160, 190)
+                },
+                font_size: size,
+                font: None,
+                wrap_width: None,
+                align: TextAlign::Left,
+                attached_to: None,
+            }),
+        });
+    }
+    cases.push(("typography", typography));
     let mut composite = doc(vec![
         rectangle(
             Rect::new(-5.0, 20.0, 130.0, 50.0),
@@ -280,35 +355,6 @@ fn highlighter_self_intersection_is_one_paint_operation() {
     })]);
     let image = render(&document, None).unwrap();
     assert_eq!(pixel(&image, 50, 40)[3], 102);
-}
-
-#[test]
-fn unsupported_elements_fail_instead_of_disappearing() {
-    let step = Shape::Step(Step {
-        center: Point::new(40.0, 40.0),
-        number: 1,
-        color: Color::rgb(255, 0, 0),
-        diameter: 30.0,
-    });
-    assert!(matches!(
-        render(&doc(vec![step]), None),
-        Err(RenderError::UnsupportedElement { .. })
-    ));
-    let text = Shape::Text(Text {
-        origin: Point::new(0.0, 0.0),
-        text: "hello".into(),
-        color: Color::rgb(0, 0, 0),
-        font_size: 24.0,
-        font: None,
-        wrap_width: None,
-        align: TextAlign::Left,
-        style: TextStyle::Plain,
-        attached_to: None,
-    });
-    assert!(matches!(
-        render(&doc(vec![text]), None),
-        Err(RenderError::UnsupportedElement { .. })
-    ));
 }
 
 #[test]
