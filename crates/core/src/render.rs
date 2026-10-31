@@ -95,10 +95,7 @@ impl fmt::Display for RenderError {
                 f.write_str("background pixels supplied for a document without a background")
             }
             Self::MissingBackground(id) => write!(f, "decoded pixels missing for background {id}"),
-            Self::UnsupportedElement { element, kind } => write!(
-                f,
-                "element {element}: {kind} requires text rendering (M1-4b)"
-            ),
+            Self::UnsupportedElement { element, kind } => write!(f, "element {element}: {kind}"),
             Self::InvalidGeometry(id) => write!(
                 f,
                 "element {id}: geometry cannot be represented by the renderer"
@@ -143,7 +140,7 @@ fn dimension(value: f64) -> Option<u32> {
 /// Render supported elements, bottom to top, over an optional decoded background.
 /// Empty space is transparent; paths are antialiased and clipped to the canvas.
 /// Fractional canvas dimensions round up. Missing backgrounds, invalid geometry,
-/// text and step numbers return errors; no incomplete output is returned.
+/// and unavailable glyphs return errors; no incomplete output is returned.
 pub fn render(
     document: &Document,
     background: Option<BackgroundImage<'_>>,
@@ -157,20 +154,6 @@ pub fn render(
         (Some(bg), _) => return Err(RenderError::MissingBackground(bg.resource.clone())),
         (None, Some(_)) => return Err(RenderError::UnexpectedBackground),
         (None, None) => {}
-    }
-    // Refuse unsupported annotations before allocating or painting a partial image.
-    for element in &document.elements {
-        let kind = match element.shape {
-            crate::Shape::Text(_) => Some("text"),
-            crate::Shape::Step(_) => Some("step"),
-            _ => None,
-        };
-        if let Some(kind) = kind {
-            return Err(RenderError::UnsupportedElement {
-                element: element.id.clone(),
-                kind,
-            });
-        }
     }
     let size = tiny_skia::IntSize::from_wh(width, height).ok_or(RenderError::InvalidCanvas)?;
     let mut pixels = Vec::new();

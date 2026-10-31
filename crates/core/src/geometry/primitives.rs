@@ -23,13 +23,13 @@ pub struct PaintedPath {
     pub style: PaintStyle,
 }
 
-/// Geometry requiring the text-layout implementation deferred to M1-4b.
+/// Geometry that cannot be laid out with the bundled fonts or within limits.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UnsupportedShape(pub &'static str);
 
 impl std::fmt::Display for UnsupportedShape {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} requires text layout (M1-4b)", self.0)
+        f.write_str(self.0)
     }
 }
 
@@ -91,13 +91,13 @@ pub fn shape_paths(shape: &Shape) -> Result<Vec<PaintedPath>, UnsupportedShape> 
             }
         }
         Shape::Stamp(stamp) => output = stamp_paths(stamp),
-        Shape::Text(_) => return Err(UnsupportedShape("text")),
-        Shape::Step(_) => return Err(UnsupportedShape("step")),
+        Shape::Text(text) => return super::text::text_paths(text),
+        Shape::Step(step) => return super::text::step_paths(step),
     }
     Ok(output)
 }
 
-fn fill(output: &mut Vec<PaintedPath>, path: Path, color: Color) {
+pub(super) fn fill(output: &mut Vec<PaintedPath>, path: Path, color: Color) {
     if !path.is_empty() {
         output.push(PaintedPath {
             path,
@@ -106,7 +106,13 @@ fn fill(output: &mut Vec<PaintedPath>, path: Path, color: Color) {
     }
 }
 
-fn stroke(output: &mut Vec<PaintedPath>, path: Path, color: Color, width: f64, round: bool) {
+pub(super) fn stroke(
+    output: &mut Vec<PaintedPath>,
+    path: Path,
+    color: Color,
+    width: f64,
+    round: bool,
+) {
     output.push(PaintedPath {
         path,
         style: PaintStyle::Stroke {
@@ -119,7 +125,7 @@ fn stroke(output: &mut Vec<PaintedPath>, path: Path, color: Color, width: f64, r
 
 const K: f64 = 0.552_284_749_830_793_6;
 
-fn rounded_rect(r: Rect, radius: f64) -> Path {
+pub(super) fn rounded_rect(r: Rect, radius: f64) -> Path {
     let (x, y, right, bottom) = (r.x, r.y, r.x + r.width, r.y + r.height);
     let a = radius.min(r.width / 2.0).min(r.height / 2.0);
     let mut p = Path::new();
@@ -191,7 +197,7 @@ fn ellipse(r: Rect) -> Path {
     p
 }
 
-fn circle(center: Point, radius: f64) -> Path {
+pub(super) fn circle(center: Point, radius: f64) -> Path {
     ellipse(Rect::new(
         center.x - radius,
         center.y - radius,

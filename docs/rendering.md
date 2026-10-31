@@ -1,8 +1,8 @@
-# Flat rendering (M1-4a)
+# Flat rendering
 
 `scribblecap_core::render::render` paints a validated document into straight RGBA8
 pixels. It handles arrows, lines, rectangles/rounded rectangles, ellipses,
-marker/highlighter and original vector stamps. It does not decode files, write
+marker/highlighter, original vector stamps, text and numbered steps. It does not decode files, write
 files or use operating-system APIs. See [decision 0007](decisions/0007-flat-rendering.md).
 
 ## API and pixel interchange
@@ -54,14 +54,33 @@ and purple star badges. Unknown names produce a gray diamond badge. Their option
 tail points in `tailAngle` degrees (0 right, 90 down), and may extend beyond the
 circle diameter. Icons and tails are paths, with no font or external artwork.
 
-Text of every style and step numbers return `UnsupportedElement` with the element
-id. M1-4b will add their shared layout/glyph paths after the font decision. The
-renderer never returns a successful image with those annotations silently removed.
+Text and step numbers use bundled Noto Sans Regular, shaped with rustybuzz and
+converted to shared paths. `geometry::layout_text` exposes the undecorated glyph
+path and logical width/height; `geometry::shape_paths` adds plain outlines, speech
+bubbles or label outlines. Unknown font families deterministically fall back to
+Noto Sans. Missing glyphs return an error naming the element; no partial export
+is returned. The bundled font covers Latin, Greek and Cyrillic, not all Unicode.
+
+Origin is the ascender box's top-left. Newlines preserve empty lines; CRLF and CR
+normalize to LF, tabs to four spaces. Line spacing uses the bundled font metrics.
+Unicode word wrapping falls back to whole graphemes for long words. A single
+oversized grapheme can overflow wrapWidth; glyph ink and outlines can extend past
+the logical box. Center/right alignment uses wrapWidth or the widest line.
+Text blocks are limited to 16 KiB before/after normalization, and wrapping to a
+million measured bytes per paragraph. Excessive layout returns an error.
+
+Plain/label outlines contrast with the glyph color and use 0.28 × font size.
+Labels render at their stored origin; attachment is an editor relationship.
+Bubbles have contrasting rounded backgrounds, padding and radius 0.3 × font size,
+and a bottom-left pointer. Steps fit and center contrasting digits within their
+colored circle, including multi-digit u32 numbers. Alpha applies to each paint
+operation. Exact appearance and dependency choices: [decision 0009](decisions/0009-text-rendering.md).
 
 ## Golden tests
 
-`crates/core/tests/golden/render/` contains five PNG fixtures: arrows, shapes,
-freehand, stamps and background/alpha compositing. Tests decode them and compare
+`crates/core/tests/golden/render/` contains ten PNG fixtures: arrows, shapes,
+freehand, stamps, background/alpha compositing, plain/bubble/label text, steps and
+multilingual typography at five sizes with translucent glyphs. Tests decode them and compare
 every straight RGBA byte, with no tolerance. These PNGs are original synthetic
 scenes and are safe to commit.
 
