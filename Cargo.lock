@@ -2926,6 +2926,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "scribblecap-core-wasm"
+version = "0.1.0"
+dependencies = [
+ "scribblecap-core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "scribblecap-formats"
 version = "0.1.0"
 dependencies = [

@@ -13,7 +13,7 @@ _Status: accepted stack ([0001-tech-stack](decisions/0001-tech-stack.md)); modul
 │  app shell (Rust)  ── clipboard · drag-out · dialogs · settings · hotkeys         │
 │        │                                                                          │
 │        ├── capture (Rust, per-OS backends)                                        │
-│        └── core (Rust library, also compiled to WASM for the UI)                  │
+│        └── core (Rust library, also compiled to WASM for the UI: core-wasm)       │
 └───────────────────────────────────────────────────────────────────────────────────┘
                      ▲
      CLI (Rust) ─────┘   uses the same core: annotate / render / convert headless
@@ -50,6 +50,7 @@ rounding, session detection) live in `x11_pixels.rs` and are tested on every OS.
 | `app` | Tauri shell: windows, menus, clipboard, drag-and-drop, settings, hotkeys | — |
 | `ui` | Svelte 5/TypeScript editor front-end, Canvas 2D viewport | OS APIs (goes through `app`) |
 | `cli` | Headless commands for scripts and agents ([cli.md](cli.md)) | UI |
+| `core-wasm` | Core for the editor UI: holds the open document, answers JSON edit requests with paths ([editor.md](editor.md), decision 0011) | UI, OS APIs |
 
 Layout on disk: `crates/{core,formats,capture,cli}`, `app/` (Tauri), `ui/`; see the
 table in `AGENTS.md`.
