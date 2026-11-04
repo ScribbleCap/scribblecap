@@ -53,13 +53,16 @@ inspired by the discontinued Skitch for Mac. Full picture: [docs/vision.md](docs
 | `crates/formats` | `scribblecap-formats`: image formats, embedded editable document |
 | `crates/capture` | `scribblecap-capture`: screen capture backends |
 | `crates/cli` | `scribblecap-cli`: the `scribblecap` command-line binary |
+| `crates/core-wasm` | `scribblecap-core-wasm`: core compiled to WebAssembly for the editor UI (decision 0011) |
 | `app/` | `scribblecap-app`: Tauri 2 desktop shell (`tauri.conf.json`, capabilities, icons) |
 | `ui/` | Editor front-end: Vite + TypeScript, built into `ui/dist` and embedded by `app` |
 | `assets/icon/` | Icon source (`scribblecap.svg`); app icons in `app/icons/` are generated from it |
 
 ## Commands
 
-Toolchains: Rust is pinned in `rust-toolchain.toml` (rustup installs it automatically);
+Toolchains: Rust is pinned in `rust-toolchain.toml` with the `wasm32-unknown-unknown`
+target (rustup installs both; the UI's `dev`, `build` and `test` scripts build the core
+as WebAssembly first, so they need Rust too);
 Node version in `ui/.node-version`; pnpm version in `ui/package.json` (`packageManager`,
 use `corepack pnpm` if pnpm is not installed). Linux needs Tauri 2's system packages.
 
