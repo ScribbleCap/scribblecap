@@ -39,6 +39,20 @@ Legend: `[ ]` todo · `[~]` in progress (put your branch name) · `[x]` done
   CI is implemented and green. Remaining: require pull requests and the three
   checks in the `main` ruleset (currently only deletion/force-push protection).
 
+- [ ] **M0-4 Skip CI work for documentation-only changes.** Deps: M0-3.
+  Scope: files under `.github/`, plus one note in `AGENTS.md`. A pull request or push that changes only
+  documentation (`**/*.md`, `docs/**`, `LICENSE*`) must not build or test, while
+  every other change still runs the full checks.
+  Constraint: the `linux`, `windows` and `macos` checks are (or will be) required by
+  the `main` ruleset, so plain `paths-ignore` is not enough: skipped workflows never
+  report, which would leave doc-only PRs blocked. Instead, a small first job detects
+  whether non-doc files changed, and the three platform jobs skip their steps (but
+  still report success) when they did not. Apply the same rule to `codeql.yml` if it
+  runs on pull requests.
+  Done when: a doc-only PR shows the three checks passing in seconds without
+  installing toolchains; a PR touching code runs them in full; the rule is described
+  in `AGENTS.md` (Commands section).
+
 ## First release scope
 
 v1 handles **raster images only**: PNG, JPEG, WebP, TIFF, BMP, GIF (first frame).
