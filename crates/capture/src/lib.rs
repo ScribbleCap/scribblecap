@@ -4,11 +4,17 @@
 //! Coordinates are **desktop points**: the global coordinate space the OS uses for
 //! window positions, origin at the top-left of the primary display, y down. Captured
 //! images are in **pixels** (points × the display's scale factor).
+//! Windows uses a uniform system-DPI desktop-point space across all monitors;
+//! see `docs/windows-capture.md` for mixed-DPI coordinates and restrictions.
 
 use std::fmt;
 
 #[cfg(target_os = "macos")]
 mod macos;
+#[cfg(target_os = "windows")]
+mod windows;
+#[cfg(any(target_os = "windows", test))]
+mod windows_image;
 #[cfg(target_os = "linux")]
 mod x11;
 mod x11_pixels;
@@ -51,7 +57,8 @@ impl ScreenRect {
 pub struct DisplayInfo {
     pub id: u32,
     pub bounds: ScreenRect,
-    /// Pixels per point (2.0 on a typical Retina display).
+    /// Pixels per desktop point (2.0 on a typical Retina display). Windows uses
+    /// the system DPI scale uniformly across the virtual desktop.
     pub scale: f64,
 }
 
@@ -71,8 +78,8 @@ pub struct CapturedImage {
     pub width: u32,
     pub height: u32,
     pub pixels: Vec<u8>,
-    /// Pixels per point of the display it came from, so the editor can show it at its
-    /// on-screen size.
+    /// Pixels per desktop point. Windows uses the system DPI scale, including
+    /// on secondary monitors; other backends use the source display's scale.
     pub scale: f64,
 }
 
@@ -134,7 +141,11 @@ pub fn backend() -> Result<Box<dyn Capturer>> {
     {
         x11::X11Capturer::new().map(|c| Box::new(c) as Box<dyn Capturer>)
     }
-    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    #[cfg(target_os = "windows")]
+    {
+        windows::WindowsCapturer::new().map(|c| Box::new(c) as Box<dyn Capturer>)
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
     {
         Err(CaptureError::Unsupported(
             "not implemented on this OS yet (roadmap M4)",
@@ -226,10 +237,10 @@ mod tests {
     #[test]
     fn backend_is_available_or_explains_why() {
         match backend() {
-            #[cfg(any(target_os = "macos", target_os = "linux"))]
+            #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
             Ok(_) => {}
-            #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-            Ok(_) => panic!("only macOS and Linux X11 have a backend so far"),
+            #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+            Ok(_) => panic!("no backend on this platform yet"),
             Err(CaptureError::Unsupported(why)) => assert!(!why.is_empty()),
             Err(e) => panic!("unexpected {e}"),
         }
