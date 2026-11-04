@@ -33,7 +33,16 @@ _Status: accepted stack ([0001-tech-stack](decisions/0001-tech-stack.md)); modul
 with the display's scale factor. Backends: macOS uses ScreenCaptureKit's
 `SCScreenshotManager`, so capture needs **macOS 14+** (decision 0002 said 12.3+; the
 one-shot screenshot API arrived in 14). It is the only module allowed `unsafe`
-(Objective-C calls), each block with a `SAFETY` note.
+(Objective-C calls), each block with a `SAFETY` note. Linux X11 uses `x11rb` (pure-Rust
+protocol, no libxcb, no `unsafe`): RandR monitors for `displays`, EWMH
+`_NET_CLIENT_LIST_STACKING` for `list_windows`, core `GetImage` on the root window for
+screen/region, and Composite `NameWindowPixmap` for windows (so covered windows capture
+whole under a compositing manager; without one, covered parts show what is on top).
+X11 has no scale factor (scale 1, points = pixels), needs no permission, and cannot
+exclude our own windows from root captures, so the app hides them first. A Wayland
+session (`XDG_SESSION_TYPE=wayland` or `WAYLAND_DISPLAY` set) returns
+`Unsupported` until the portal backend (M4-4). Pure helpers (pixel decoding, region
+rounding, session detection) live in `x11_pixels.rs` and are tested on every OS.
 | `app` | Tauri shell: windows, menus, clipboard, drag-and-drop, settings, hotkeys | — |
 | `ui` | Svelte 5/TypeScript editor front-end, Canvas 2D viewport | OS APIs (goes through `app`) |
 | `cli` | Headless commands for scripts and agents ([cli.md](cli.md)) | UI |

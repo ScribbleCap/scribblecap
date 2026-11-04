@@ -8,7 +8,8 @@
 //! cargo run -p scribblecap-capture --example capture -- region <x> <y> <width> <height>
 //! ```
 //!
-//! Images are written to `target/capture/<what>.png`. On macOS the terminal app needs
+//! Images are written to `target/capture/<what>.png`. Linux needs an X11 session
+//! (Wayland reports unsupported until roadmap M4-4). On macOS the terminal app needs
 //! Screen Recording permission (System Settings → Privacy & Security → Screen & System
 //! Audio Recording); the first run asks for it.
 

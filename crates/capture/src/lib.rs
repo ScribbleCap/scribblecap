@@ -9,6 +9,9 @@ use std::fmt;
 
 #[cfg(target_os = "macos")]
 mod macos;
+#[cfg(target_os = "linux")]
+mod x11;
+mod x11_pixels;
 
 /// A rectangle in desktop points.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -80,7 +83,8 @@ pub enum CaptureError {
     PermissionDenied,
     /// No such window or display, or the region is off every display.
     NotFound,
-    /// Capture isn't available on this OS (version) yet.
+    /// Capture isn't available on this OS (version) or session yet (e.g. Linux
+    /// Wayland, or no X11 display).
     Unsupported(&'static str),
     /// The OS capture API failed.
     Os(String),
@@ -126,7 +130,11 @@ pub fn backend() -> Result<Box<dyn Capturer>> {
     {
         macos::MacCapturer::new().map(|c| Box::new(c) as Box<dyn Capturer>)
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "linux")]
+    {
+        x11::X11Capturer::new().map(|c| Box::new(c) as Box<dyn Capturer>)
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     {
         Err(CaptureError::Unsupported(
             "not implemented on this OS yet (roadmap M4)",
@@ -218,10 +226,10 @@ mod tests {
     #[test]
     fn backend_is_available_or_explains_why() {
         match backend() {
-            #[cfg(target_os = "macos")]
+            #[cfg(any(target_os = "macos", target_os = "linux"))]
             Ok(_) => {}
-            #[cfg(not(target_os = "macos"))]
-            Ok(_) => panic!("only macOS has a backend so far"),
+            #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+            Ok(_) => panic!("only macOS and Linux X11 have a backend so far"),
             Err(CaptureError::Unsupported(why)) => assert!(!why.is_empty()),
             Err(e) => panic!("unexpected {e}"),
         }
