@@ -18,6 +18,7 @@ inspired by the discontinued Skitch for Mac. Full picture: [docs/vision.md](docs
 | Editable document format (JSON schema) | [docs/file-format.md](docs/file-format.md) |
 | Why a decision was made | [docs/decisions/](docs/decisions/) |
 | How Skitch behaved (formats, constants, geometry) | [docs/reverse-engineering/findings.md](docs/reverse-engineering/findings.md) |
+| How the desktop UI should look and feel | [docs/design-review.md](docs/design-review.md) |
 
 ## Workflow
 
