@@ -18,6 +18,12 @@
   let pointer: { id: number; x: number; y: number } | null = null;
   let alive = true;
   let ratio = $state(1);
+  // While fitted, resizing the window re-fits the image (like native image viewers);
+  // any manual zoom or pan ends fitting until Fit is chosen again.
+  let fitted = $state(false);
+  let theme = $state(0);
+  let tile: HTMLCanvasElement | null = null;
+  let tileColor = '';
   const zoomLabel = $derived(view.scale * 100 < 1 ? `${(view.scale * 100).toPrecision(2)}%` : `${Math.round(view.scale * 100)}%`);
 
   async function load(action: () => Promise<LoadedImage | null>) {
@@ -32,7 +38,7 @@
       if (!context) throw new Error('The image canvas could not be created.');
       context.putImageData(new ImageData(next.pixels, next.width, next.height), 0, 0);
       source = nextSource; image = next;
-      view = fitViewport(next, area);
+      view = fitViewport(next, area); fitted = true;
       document.title = `${next.name} — ScribbleCap`;
     } catch (cause) {
       if (alive) error = cause instanceof Error ? cause.message : String(cause);
@@ -62,9 +68,9 @@
       else error = 'There is no image on the clipboard. Copy an image and try again.';
     }
   }
-  function fit() { if (image) view = fitViewport(image, area); }
-  function actual() { if (image) view = actualSize(image, area); }
-  function zoom(factor: number) { if (image) view = zoomAt(view, view.scale * factor, { x: area.width / 2, y: area.height / 2 }); }
+  function fit() { if (image) { view = fitViewport(image, area); fitted = true; } }
+  function actual() { if (image) { view = actualSize(image, area); fitted = false; } }
+  function zoom(factor: number) { if (image) { view = zoomAt(view, view.scale * factor, { x: area.width / 2, y: area.height / 2 }); fitted = false; } }
   function editableTarget(target: EventTarget | null) {
     return target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
   }
@@ -81,7 +87,7 @@
       if (key === '1') actual();
     } else if (image) {
       const delta: Record<string, [number, number]> = { ArrowLeft: [32, 0], ArrowRight: [-32, 0], ArrowUp: [0, 32], ArrowDown: [0, -32] };
-      if (delta[event.key]) { event.preventDefault(); view = panBy(view, ...delta[event.key]); }
+      if (delta[event.key]) { event.preventDefault(); view = panBy(view, ...delta[event.key]); fitted = false; }
     }
   }
   function onWheel(event: WheelEvent) {
@@ -92,6 +98,7 @@
       const bounds = stage.getBoundingClientRect();
       view = zoomAt(view, view.scale * Math.exp(-event.deltaY * delta * 0.01), { x: event.clientX - bounds.left, y: event.clientY - bounds.top });
     } else view = panBy(view, -event.deltaX * delta, -event.deltaY * delta);
+    fitted = false;
   }
   function down(event: PointerEvent) {
     if (!image || event.button !== 0 || !event.isPrimary) return;
@@ -100,6 +107,7 @@
   }
   function move(event: PointerEvent) {
     if (!pointer || pointer.id !== event.pointerId) return;
+    if (event.clientX !== pointer.x || event.clientY !== pointer.y) fitted = false;
     view = panBy(view, event.clientX - pointer.x, event.clientY - pointer.y);
     pointer = { id: event.pointerId, x: event.clientX, y: event.clientY };
   }
@@ -113,11 +121,16 @@
     const observer = new ResizeObserver(entries => {
       const bounds = entries[0].contentRect;
       if (!bounds.width || !bounds.height) return;
-      view = panBy(view, (bounds.width - area.width) / 2, (bounds.height - area.height) / 2);
-      area = { width: bounds.width, height: bounds.height }; ratio = window.devicePixelRatio || 1;
+      const next = { width: bounds.width, height: bounds.height };
+      view = fitted && image ? fitViewport(image, next) : panBy(view, (next.width - area.width) / 2, (next.height - area.height) / 2);
+      area = next; ratio = window.devicePixelRatio || 1;
     });
     observer.observe(stage);
-    return () => observer.disconnect();
+    // Repaint the canvas when the system switches between light and dark.
+    const scheme = window.matchMedia?.('(prefers-color-scheme: dark)');
+    const onScheme = () => { theme++; };
+    scheme?.addEventListener?.('change', onScheme);
+    return () => { observer.disconnect(); scheme?.removeEventListener?.('change', onScheme); };
   });
   onDestroy(() => { alive = false; });
   $effect(() => {
@@ -129,16 +142,32 @@
     if (!context) return;
     context.setTransform(1, 0, 0, 1, 0, 0); context.clearRect(0, 0, canvas.width, canvas.height);
     context.setTransform(ratio * view.scale, 0, 0, ratio * view.scale, view.x * ratio, view.y * ratio);
-    context.imageSmoothingEnabled = view.scale < 1;
-    context.fillStyle = '#ffffff';
-    const tile = document.createElement('canvas'); tile.width = 16; tile.height = 16;
-    const tileContext = tile.getContext('2d');
-    if (tileContext) {
-      tileContext.fillStyle = '#fff'; tileContext.fillRect(0, 0, 16, 16);
-      tileContext.fillStyle = '#e4e5e8'; tileContext.fillRect(0, 0, 8, 8); tileContext.fillRect(8, 8, 8, 8);
-      context.fillStyle = context.createPattern(tile, 'repeat') ?? '#fff';
+    void theme;
+    const styles = getComputedStyle(stage);
+    const token = (name: string, fallback: string) => styles.getPropertyValue(name).trim() || fallback;
+    const checker = token('--checker', '#e4e5e8');
+    if (!tile || tileColor !== checker) {
+      // Built once per theme rather than on every redraw.
+      tile = document.createElement('canvas'); tile.width = 16; tile.height = 16; tileColor = checker;
+      const tileContext = tile.getContext('2d');
+      if (tileContext) {
+        tileContext.fillStyle = '#fff'; tileContext.fillRect(0, 0, 16, 16);
+        tileContext.fillStyle = checker; tileContext.fillRect(0, 0, 8, 8); tileContext.fillRect(8, 8, 8, 8);
+      }
     }
-    context.fillRect(0, 0, source.width, source.height); context.drawImage(source, 0, 0);
+    // Shadow under the image, then the image, then a hairline edge so dark images
+    // stay distinct from a dark canvas. Shadow and edge are in screen pixels.
+    context.shadowColor = token('--image-shadow', 'rgba(0,0,0,.22)');
+    context.shadowBlur = 14 * ratio; context.shadowOffsetY = 2 * ratio;
+    context.fillStyle = context.createPattern(tile, 'repeat') ?? '#fff';
+    context.fillRect(0, 0, source.width, source.height);
+    context.shadowColor = 'transparent'; context.shadowBlur = 0; context.shadowOffsetY = 0;
+    context.imageSmoothingEnabled = view.scale < 1;
+    context.drawImage(source, 0, 0);
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    context.strokeStyle = token('--image-edge', 'rgba(0,0,0,.18)'); context.lineWidth = 1 / ratio;
+    const half = 0.5 / ratio;
+    context.strokeRect(view.x - half, view.y - half, source.width * view.scale + 2 * half, source.height * view.scale + 2 * half);
   });
 </script>
 
@@ -164,7 +193,7 @@
       {#if image}<canvas bind:this={canvas} aria-label={`${image.name}, ${image.width} by ${image.height} pixels`}></canvas>
       {:else}
         <div class="empty-state">
-          <div class="empty-art" aria-hidden="true"><svg width="104" height="92" viewBox="0 0 104 92"><path d="M20 32V13h20M64 13h20v19M84 60v19H64M40 79H20V60" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><path d="M35 59 67 32M52 33l17-3-4 18" fill="none" stroke="#e13b66" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="empty-art" aria-hidden="true"><svg width="104" height="92" viewBox="0 0 104 92"><path d="M20 32V13h20M64 13h20v19M84 60v19H64M40 79H20V60" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><path d="M35 59 67 32M52 33l17-3-4 18" fill="none" stroke="var(--mark)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
           <h1>A picture is a good place to start.</h1>
           <p>Open an image or paste a screenshot<br />to bring it onto your canvas.</p>
           <button class="primary large" onclick={openImage} disabled={busy}>Open an image</button>
