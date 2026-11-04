@@ -80,6 +80,9 @@ HEIF/AVIF, SVG and PDF follow after the first release (M6).
 
 ## M2 — Editor MVP (images)
 
+_UI work follows the [design review](design-review.md): its D1–D7 items are
+scheduled alongside the tasks below (D1–D3 and D6a can start now)._
+
 - [x] **M2-1 App shell**: open file, paste image from clipboard,
   window, zoom/pan. Framework: [decision 0006](decisions/0006-ui-framework.md).
   Behavior and validation: [app-shell.md](app-shell.md).
