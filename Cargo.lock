@@ -2867,6 +2867,7 @@ dependencies = [
  "objc2-foundation",
  "objc2-screen-capture-kit",
  "scribblecap-formats",
+ "x11rb",
 ]
 
 [[package]]
