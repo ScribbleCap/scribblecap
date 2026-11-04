@@ -118,7 +118,7 @@ scheduled alongside the tasks below (D1–D3 and D6a can start now)._
   with the warnings documented. Flathub submission as a follow-up.
 - [ ] **M5-2 Settings**, light/dark theme, HiDPI checks.
 - [ ] **M5-3 Accessibility pass** (keyboard-only, screen-reader labels).
-- [ ] **M5-4 CLI**: `annotate`, `render`, `convert` with docs and examples.
+- [x] **M5-4 CLI**: `annotate`, `render`, `convert` with docs and examples ([cli.md](cli.md)).
 
 ## M6 — After first release: HEIF/AVIF, SVG, PDF
 

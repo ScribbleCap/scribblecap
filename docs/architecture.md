@@ -36,7 +36,7 @@ one-shot screenshot API arrived in 14). It is the only module allowed `unsafe`
 (Objective-C calls), each block with a `SAFETY` note.
 | `app` | Tauri shell: windows, menus, clipboard, drag-and-drop, settings, hotkeys | — |
 | `ui` | Svelte 5/TypeScript editor front-end, Canvas 2D viewport | OS APIs (goes through `app`) |
-| `cli` | Headless commands for scripts and agents | UI |
+| `cli` | Headless commands for scripts and agents ([cli.md](cli.md)) | UI |
 
 Layout on disk: `crates/{core,formats,capture,cli}`, `app/` (Tauri), `ui/`; see the
 table in `AGENTS.md`.
