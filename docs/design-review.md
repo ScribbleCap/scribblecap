@@ -100,9 +100,9 @@ Everything else stays quiet and native.
 
 | Item | Findings | When |
 |---|---|---|
-| D1 Theme: follow system light/dark in window and CSS, colour tokens | 1, 5, 10 | Now (independent of M2-2; part of M5-2 pulled forward) |
-| D2 Keep image fitted while resizing until manual zoom | 12 | Now |
-| D3 Image edge/shadow; cache checkerboard tile | 11 | Now |
+| D1 Theme: follow system light/dark in window and CSS, colour tokens | 1, 5, 10 | CSS done (`ui/d1-d3-theme-fit`); native title bar still to check in dark mode |
+| D2 Keep image fitted while resizing until manual zoom | 12 | Done (`ui/d1-d3-theme-fit`) |
+| D3 Image edge/shadow; cache checkerboard tile | 11 | Done (`ui/d1-d3-theme-fit`) |
 | D4 Title-bar tools, remove logo and footer, canvas badge, quieter buttons | 2, 3, 4, 7, 14 | With M2-2 |
 | D5 Native menus and per-platform shortcut labels | 6, 8 | With M2-5 |
 | D6 Drop files onto the window; drag-out handle | 9 | D6a drop: now; D6b drag-out: with M2-9 |
