@@ -100,7 +100,8 @@ HEIF/AVIF, SVG and PDF follow after the first release (M6).
 
 - [x] **M4-1 `capture` trait + macOS backend** (ScreenCaptureKit, macOS 14+).
 - [ ] **M4-2 Windows backend** (Windows.Graphics.Capture).
-- [ ] **M4-3 Linux X11 backend.**
+- [x] **M4-3 Linux X11 backend** (x11rb; Wayland sessions report unsupported). Built
+  and tested by Linux CI; capture itself still needs a manual check on a real X11 desktop.
 - [ ] **M4-4 Linux Wayland backend** (xdg-desktop-portal).
 - [ ] **M4-5 Region/window picker overlay**, previous region, timed capture.
 - [ ] **M4-6 Global hotkey / tray icon**, `app capture` CLI command.
