@@ -8,13 +8,15 @@ vi.mock('./lib/bridge', () => ({ desktop: true, openImage: vi.fn(), pasteImage: 
 
 function image(name = 'test.png'): LoadedImage { return { name, width: 2, height: 1, pixels: new Uint8ClampedArray([255, 0, 0, 255, 0, 0, 255, 255]) }; }
 const transform = vi.fn();
+// Each redraw sets the image transform, then a screen-space transform for the image edge.
+const viewTransform = () => transform.mock.calls.at(-2);
 let resize: ResizeObserverCallback | undefined;
 beforeEach(() => {
   vi.mocked(bridge.openImage).mockReset(); vi.mocked(bridge.pasteImage).mockReset(); transform.mockReset();
   resize = undefined;
   vi.stubGlobal('ResizeObserver', class { constructor(callback: ResizeObserverCallback) { resize = callback; } observe() {} disconnect() {} });
   vi.stubGlobal('ImageData', class { constructor(public data: Uint8ClampedArray, public width: number, public height: number) {} });
-  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ putImageData: vi.fn(), setTransform: transform, clearRect: vi.fn(), fillRect: vi.fn(), drawImage: vi.fn(), createPattern: vi.fn() } as unknown as CanvasRenderingContext2D);
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ putImageData: vi.fn(), setTransform: transform, clearRect: vi.fn(), fillRect: vi.fn(), drawImage: vi.fn(), createPattern: vi.fn(), strokeRect: vi.fn() } as unknown as CanvasRenderingContext2D);
 });
 
 describe('image shell', () => {
@@ -57,9 +59,9 @@ describe('image shell', () => {
     await waitFor(() => expect(screen.getByLabelText('Clipboard image, 2 by 1 pixels')).toBeTruthy());
     await fireEvent.keyDown(window, { key: '=', ctrlKey: true });
     expect(screen.getByRole('button', { name: '125%' })).toBeTruthy();
-    const before = transform.mock.calls.at(-1);
+    const before = viewTransform();
     await fireEvent.keyDown(window, { key: 'ArrowRight' });
-    expect(transform.mock.calls.at(-1)).not.toEqual(before);
+    expect(viewTransform()).not.toEqual(before);
     await fireEvent.keyDown(window, { key: '0', metaKey: true });
     expect(screen.getByRole('button', { name: '100%' })).toBeTruthy();
   });
@@ -84,14 +86,24 @@ describe('image shell', () => {
     Object.assign(viewport, { setPointerCapture: capture, hasPointerCapture: () => true, releasePointerCapture: release });
     await fireEvent.pointerDown(viewport, { pointerId: 1, button: 0, isPrimary: true, clientX: 30, clientY: 40 });
     expect(capture).toHaveBeenCalledWith(1);
-    const before = transform.mock.calls.at(-1);
+    const before = viewTransform();
     await fireEvent.pointerMove(viewport, { pointerId: 1, isPrimary: true, clientX: 90, clientY: 70 });
-    expect(transform.mock.calls.at(-1)).not.toEqual(before);
+    expect(viewTransform()).not.toEqual(before);
     await fireEvent.pointerUp(viewport, { pointerId: 1 });
     expect(release).toHaveBeenCalledWith(1);
     expect(viewport.classList.contains('dragging')).toBe(false);
     await fireEvent.wheel(viewport, { deltaY: -10, ctrlKey: true, clientX: 100, clientY: 100 });
     expect(screen.getByRole('button', { name: '111%' })).toBeTruthy();
+  });
+  it('keeps a fitted image fitted when the viewport is resized', async () => {
+    vi.mocked(bridge.openImage).mockResolvedValue({ name: 'big.png', width: 2000, height: 1000, pixels: new Uint8ClampedArray(2000 * 1000 * 4) });
+    render(App);
+    await fireEvent.click(screen.getByRole('button', { name: 'Open image' }));
+    await waitFor(() => expect(screen.getByLabelText('big.png, 2000 by 1000 pixels')).toBeTruthy());
+    resize?.([{ contentRect: { width: 1040, height: 540 } } as ResizeObserverEntry], {} as ResizeObserver);
+    await waitFor(() => expect(screen.getByRole('button', { name: '50%' })).toBeTruthy());
+    resize?.([{ contentRect: { width: 540, height: 540 } } as ResizeObserverEntry], {} as ResizeObserver);
+    await waitFor(() => expect(screen.getByRole('button', { name: '25%' })).toBeTruthy());
   });
   it('keeps zoom when the viewport is resized', async () => {
     vi.mocked(bridge.openImage).mockResolvedValue(image());
@@ -99,9 +111,9 @@ describe('image shell', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'Open image' }));
     await waitFor(() => expect(screen.getByLabelText('test.png, 2 by 1 pixels')).toBeTruthy());
     await fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
-    const before = transform.mock.calls.at(-1);
+    const before = viewTransform();
     resize?.([{ contentRect: { width: 1000, height: 800 } } as ResizeObserverEntry], {} as ResizeObserver);
-    await waitFor(() => expect(transform.mock.calls.at(-1)).not.toEqual(before));
+    await waitFor(() => expect(viewTransform()).not.toEqual(before));
     expect(screen.getByRole('button', { name: '125%' })).toBeTruthy();
   });
 });

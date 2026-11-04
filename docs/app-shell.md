@@ -12,8 +12,15 @@ content produces a recoverable message; the shell never changes the clipboard.
 
 An image initially fits the viewport without enlarging small images. Fit repeats
 that action. Clicking the percentage selects actual size (one image pixel per CSS
-pixel). Zoom preserves its center/pointer anchor. Resize preserves zoom and shifts
-the image with the viewport center. Canvas backing resolution follows device scale.
+pixel). Zoom preserves its center/pointer anchor. While the image is fitted (after
+opening, pasting or Fit), resizing the window re-fits it, as native image viewers
+do; once the user zooms or pans, resize preserves zoom and shifts the image with
+the viewport center. Canvas backing resolution follows device scale.
+
+Colours follow the system light/dark setting (`prefers-color-scheme`) through
+CSS tokens in `ui/src/style.css`; focus uses the system accent colour where the
+webview supports `AccentColor`. The image has a soft shadow and a hairline edge so
+dark images stay distinct from the dark canvas.
 
 The current image remains after cancellation or failure. Only one input request
 runs at a time; errors can be dismissed. This is a read-only shell: no source image
