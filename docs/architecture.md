@@ -32,8 +32,12 @@ _Status: accepted stack ([0001-tech-stack](decisions/0001-tech-stack.md)); modul
 `capture_window`, `capture_region`) in desktop points; images come back as sRGB RGBA8
 with the display's scale factor. Backends: macOS uses ScreenCaptureKit's
 `SCScreenshotManager`, so capture needs **macOS 14+** (decision 0002 said 12.3+; the
-one-shot screenshot API arrived in 14). It is the only module allowed `unsafe`
-(Objective-C calls), each block with a `SAFETY` note. Linux X11 uses `x11rb` (pure-Rust
+one-shot screenshot API arrived in 14). Platform capture modules allow `unsafe`
+for native calls, each block with a `SAFETY` note. Windows uses
+Windows.Graphics.Capture with Direct3D11 readback on Windows 10 2004+; its desktop
+points use a uniform system-DPI scale across all monitors (decision 0010).
+See [windows-capture.md](windows-capture.md) for validation and limitations.
+Linux X11 uses `x11rb` (pure-Rust
 protocol, no libxcb, no `unsafe`): RandR monitors for `displays`, EWMH
 `_NET_CLIENT_LIST_STACKING` for `list_windows`, core `GetImage` on the root window for
 screen/region, and Composite `NameWindowPixmap` for windows (so covered windows capture
