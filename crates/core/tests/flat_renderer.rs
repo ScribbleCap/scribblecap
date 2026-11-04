@@ -24,6 +24,23 @@ fn rectangle(rect: Rect, fill: Color) -> Shape {
     })
 }
 
+fn text_element(style: TextStyle, origin: Point, attached_to: Option<ElementId>) -> Element {
+    Element {
+        id: ElementId::from("text"),
+        shape: Shape::Text(Text {
+            origin,
+            text: "Office café\nClick here first!".into(),
+            style,
+            color: Color::rgb(20, 60, 120),
+            font_size: 22.0,
+            font: None,
+            wrap_width: Some(150.0),
+            align: TextAlign::Center,
+            attached_to,
+        }),
+    }
+}
+
 fn pixel(image: &scribblecap_core::render::RenderedImage, x: usize, y: usize) -> &[u8] {
     let i = (y * image.width() as usize + x) * 4;
     &image.pixels()[i..i + 4]
@@ -143,28 +160,35 @@ fn cases() -> Vec<(&'static str, Document)> {
     for (name, style) in [
         ("text_plain", TextStyle::Plain),
         ("text_bubble", TextStyle::Bubble),
-        ("text_label", TextStyle::Label),
     ] {
         let mut document = doc(vec![rectangle(
             Rect::new(0.0, 0.0, 192.0, 144.0),
             Color::rgb(225, 232, 240),
         )]);
-        document.elements.push(Element {
-            id: ElementId::from("text"),
-            shape: Shape::Text(Text {
-                origin: Point::new(15.0, 12.0),
-                text: "Office café\nClick here first!".into(),
-                style,
-                color: Color::rgb(20, 60, 120),
-                font_size: 22.0,
-                font: None,
-                wrap_width: Some(150.0),
-                align: TextAlign::Center,
-                attached_to: (style == TextStyle::Label).then(|| ElementId::from("element-0")),
-            }),
-        });
+        document
+            .elements
+            .push(text_element(style, Point::new(15.0, 12.0), None));
         cases.push((name, document));
     }
+    // A label is text attached to another element: the scene shows the label
+    // under the outlined target it belongs to. Rendering uses the label's own
+    // origin (decision 0009); attachment only matters to the editor.
+    let mut labelled = doc(vec![
+        rectangle(Rect::new(0.0, 0.0, 192.0, 144.0), Color::rgb(225, 232, 240)),
+        Shape::Rectangle(Rectangle {
+            rect: Rect::new(36.0, 6.0, 120.0, 34.0),
+            fill: None,
+            stroke: red,
+            width: 4.0,
+            corner_radius: 6.0,
+        }),
+    ]);
+    labelled.elements.push(text_element(
+        TextStyle::Label,
+        Point::new(21.0, 46.0),
+        Some(ElementId::from("element-1")),
+    ));
+    cases.push(("text_label", labelled));
     cases.push((
         "steps",
         doc([1, 12, 999, u32::MAX]
@@ -493,4 +517,27 @@ fn unrepresentable_geometry_returns_an_error() {
         render(&document, None),
         Err(RenderError::InvalidGeometry(_))
     ));
+}
+
+#[test]
+fn label_text_renders_like_plain_text() {
+    // Decision 0009: labels share the plain outline style and render at their
+    // stored origin; the attachment does not move or restyle them on export.
+    let render_one = |style, attached_to| {
+        let mut document = doc(vec![Shape::Rectangle(Rectangle {
+            rect: Rect::new(10.0, 10.0, 40.0, 30.0),
+            fill: None,
+            stroke: Color::rgb(225, 45, 65),
+            width: 3.0,
+            corner_radius: 0.0,
+        })]);
+        document
+            .elements
+            .push(text_element(style, Point::new(15.0, 60.0), attached_to));
+        render(&document, None).unwrap().pixels().to_vec()
+    };
+    assert_eq!(
+        render_one(TextStyle::Label, Some(ElementId::from("element-0"))),
+        render_one(TextStyle::Plain, None)
+    );
 }
