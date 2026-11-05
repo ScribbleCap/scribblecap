@@ -33,4 +33,4 @@ objc2-foundation = { version = "0.3", default-features = false, features = ["std
 objc2-screen-capture-kit = { version = "0.3", default-features = false, features = ["std", "block2", "libc", "objc2-core-graphics", "objc2-core-foundation", "SCShareableContent", "SCScreenshotManager", "SCStream"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-x11rb = { version = "0.13", default-features = false, features = ["randr", "composite"] }
+x11rb = { version = "0.14", default-features = false, features = ["randr", "composite"] }
