@@ -26,21 +26,11 @@ button:focus-visible, .viewport:focus-visible { outline: 3px solid var(--accent)
 button:disabled { opacity: .4; cursor: default; }
 button.primary { color: #fff; background: var(--mark); border-color: var(--mark); }
 button.primary:hover:not(:disabled) { background: var(--mark-hover); border-color: var(--mark-hover); }
-button.primary span { font-size: 18px; margin-right: 5px; font-weight: 400; }
 main { height: 100dvh; display: flex; flex-direction: column; min-width: 320px; }
-.toolbar { display: flex; gap: 22px; align-items: center; padding: 13px 20px; background: var(--chrome); border-bottom: 1px solid var(--line); flex-shrink: 0; }
-.brand { display: flex; gap: 8px; align-items: center; font-size: 14px; }
-.brand-mark { display: block; width: 28px; height: 28px; border-radius: 7px; }
-.input-actions, .zoom-actions { display: flex; gap: 7px; align-items: center; }
-.zoom-actions { margin-left: auto; gap: 3px; }
-.zoom-actions button { border-color: transparent; background: transparent; }
 .square { width: 32px; padding: 0; font-size: 19px; }
 .zoom-value { min-width: 62px; font-variant-numeric: tabular-nums; }
-.divider { width: 1px; height: 18px; background: var(--line); margin: 0 6px; }
 .workspace { position: relative; flex: 1; min-height: 0; background: var(--stage); }
 .viewport { width: 100%; height: 100%; overflow: hidden; touch-action: none; user-select: none; outline: none; position: relative; }
-.has-image .viewport { cursor: grab; }
-.has-image .viewport.dragging { cursor: grabbing; }
 canvas { width: 100%; height: 100%; display: block; }
 .empty-state { display: flex; align-items: center; flex-direction: column; justify-content: center; min-height: 100%; padding: 35px 20px; text-align: center; }
 .empty-art { color: var(--ink-2); margin-bottom: 16px; }
@@ -48,13 +38,23 @@ h1 { font-size: 20px; font-weight: 600; margin: 0 0 12px; }
 .empty-state p { font-size: 14px; line-height: 1.7; margin: 0 0 25px; color: var(--ink-2); }
 .large { padding: 0 22px; min-height: 38px; font-size: 13px; }
 .formats { color: var(--ink-2); font-size: 12px; margin-top: 22px; }
-footer { flex-shrink: 0; min-height: 31px; display: flex; gap: 18px; align-items: center; padding: 7px 18px; border-top: 1px solid var(--line); background: var(--chrome); font-size: 12px; color: var(--ink-2); }
 .file-info { color: var(--ink); max-width: 35%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dimensions { font-variant-numeric: tabular-nums; white-space: nowrap; }
-#viewport-help { margin-left: auto; text-align: right; }
 .error { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 8px 18px; color: var(--error-ink); background: var(--error-bg); font-size: 12px; border-bottom: 1px solid var(--error-line); }
 .error button { border: 0; background: transparent; color: inherit; font-size: 20px; min-width: 32px; }
 .loading { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); padding: 8px 16px; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); color: var(--ink-2); font-size: 12px; box-shadow: 0 3px 15px var(--image-shadow); pointer-events: none; }
 .file-input { display: none; }
-@media (max-width: 720px) { .toolbar { gap: 10px; padding: 10px; } .brand strong { display: none; } .input-actions { gap: 5px; } button { padding: 0 9px; } footer { gap: 10px; padding: 7px 10px; } #viewport-help { display: none; } .file-info { max-width: 65%; } }
-@media (max-width: 420px) { .brand { display: none; } .toolbar { flex-wrap: wrap; gap: 6px; } .zoom-actions { margin-left: auto; } .zoom-value { min-width: 50px; } .empty-state h1 { font-size: 18px; } }
+.titlebar { display: flex; gap: 16px; align-items: center; justify-content: space-between; min-height: 44px; padding: 6px 12px; background: var(--chrome); border-bottom: 1px solid var(--line); flex-shrink: 0; user-select: none; -webkit-user-select: none; }
+/* macOS overlay title bar: leave room for the window buttons. */
+.mac .titlebar { padding-left: 80px; }
+.input-actions, .zoom-actions, .tools { display: flex; gap: 4px; align-items: center; }
+button.quiet { border-color: transparent; background: transparent; }
+.tools { padding: 2px; border-radius: 8px; background: var(--hover); }
+.tool { width: 34px; min-height: 30px; padding: 0; display: grid; place-items: center; border-color: transparent; background: transparent; color: var(--ink-2); }
+.tool[aria-pressed='true'] { color: var(--accent); background: var(--surface); border-color: var(--line); }
+.statusbar { flex-shrink: 0; min-height: 32px; display: flex; gap: 16px; align-items: center; padding: 2px 8px 2px 14px; border-top: 1px solid var(--line); background: var(--chrome); font-size: 12px; color: var(--ink-2); }
+.statusbar .zoom-actions { margin-left: auto; gap: 2px; }
+.statusbar button { min-height: 26px; border-color: transparent; background: transparent; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@media (max-width: 720px) { .titlebar { gap: 8px; } button { padding: 0 9px; } .statusbar { gap: 10px; } .file-info { max-width: 45%; } }
+@media (max-width: 420px) { .input-actions { display: none; } .zoom-value { min-width: 50px; } .empty-state h1 { font-size: 18px; } }

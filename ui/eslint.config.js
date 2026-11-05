@@ -4,7 +4,7 @@ import svelte from 'eslint-plugin-svelte';
 import svelteConfig from './svelte.config.js';
 
 export default tseslint.config(
-  { ignores: ["dist", "node_modules"] },
+  { ignores: ["dist", "node_modules", "src/generated"] },
   js.configs.recommended,
   tseslint.configs.recommended,
   ...svelte.configs['flat/recommended'],

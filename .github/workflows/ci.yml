@@ -44,6 +44,13 @@ jobs:
             libwebkit2gtk-4.1-dev build-essential curl wget file \
             libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
 
+      # Before the UI steps: they build the core library for WebAssembly (decision 0011).
+      - name: Install pinned Rust toolchain (with the wasm32 target)
+        run: rustup toolchain install
+
+      - name: Cache Rust dependencies and build output
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
       - name: Install pinned Node before bootstrapping pnpm
         uses: actions/setup-node@v7
         with:
@@ -74,12 +81,6 @@ jobs:
 
       - name: Build UI for the Tauri app
         run: pnpm --dir ui build
-
-      - name: Install pinned Rust toolchain
-        run: rustup show
-
-      - name: Cache Rust dependencies and build output
-        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
 
       - name: Check Rust formatting
         run: cargo fmt --all -- --check

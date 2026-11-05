@@ -33,8 +33,8 @@ is changed, annotations added, or file saved by M2-1.
 | Ctrl/⌘ + or − / zoom buttons | Zoom around viewport center |
 | Ctrl/⌘ 0 / Fit | Fit |
 | Ctrl/⌘ 1 / percentage | Actual size |
-| Arrow keys | Pan |
-| Scroll / left-button drag | Pan |
+| Arrow keys | Pan (move the selection when one exists, see [editor.md](editor.md)) |
+| Scroll / Space + drag / middle-button drag | Pan (left-button drag draws or selects since M2-2) |
 | Ctrl/⌘ + scroll/pinch | Zoom around pointer |
 
 Shortcuts avoid editable controls. Toolbar buttons expose labels, disabled/focus

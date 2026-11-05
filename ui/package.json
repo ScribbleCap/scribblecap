@@ -4,11 +4,12 @@
   "type": "module",
   "packageManager": "pnpm@12.16.1",
   "scripts": {
-    "dev": "vite",
-    "build": "svelte-check --tsconfig ./tsconfig.json && tsc --noEmit && vite build",
+    "dev": "node scripts/build-wasm.mjs && vite",
+    "build": "node scripts/build-wasm.mjs && svelte-check --tsconfig ./tsconfig.json && tsc --noEmit && vite build",
     "lint": "eslint .",
-    "test": "vitest run",
-    "tauri": "node scripts/tauri.mjs"
+    "test": "node scripts/build-wasm.mjs && vitest run",
+    "tauri": "node scripts/tauri.mjs",
+    "wasm": "node scripts/build-wasm.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
