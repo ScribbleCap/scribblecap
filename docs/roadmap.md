@@ -16,7 +16,7 @@ Legend: `[ ]` todo · `[~]` in progress (put your branch name) · `[x]` done
   Cargo workspace with `core`, `formats`, `capture`, `cli`, `app` (Tauri 2), `ui`
   (`pdf` is added in M6); `AGENTS.md` "Commands" section filled in.
   Done when: `build`, `test`, `lint` commands documented and passing locally.
-- [ ] **M0-3 CI on Linux, Windows, macOS.** Can run **in parallel with M0-2**; merges
+- [x] **M0-3 CI on Linux, Windows, macOS.** Can run **in parallel with M0-2**; merges
   after it (rebase onto M0-2, then confirm a green run).
   Scope: only files under `.github/` (workflows, dependabot). Do not edit other files.
   Contract with M0-2 (the scaffold provides exactly these):
