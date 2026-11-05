@@ -100,8 +100,11 @@ scheduled alongside the tasks below (D1–D3 and D6a can start now)._
 - [x] **M2-1 App shell**: open file, paste image from clipboard,
   window, zoom/pan. Framework: [decision 0006](decisions/0006-ui-framework.md).
   Behavior and validation: [app-shell.md](app-shell.md).
-- [ ] **M2-2 Tools**: arrow, line, rect, rounded rect, ellipse. Selection, move, resize,
+- [x] **M2-2 Tools**: arrow, line, rect, rounded rect, ellipse. Selection, move, resize,
   delete. Deps: M1-4.
+  Core runs in the UI as WebAssembly ([decision 0011](decisions/0011-core-in-the-ui.md));
+  behaviour and protocol: [editor.md](editor.md). Includes design-review D4 (layout)
+  and D7 (cursors and panning).
 - [ ] **M2-3 Marker and highlighter.** Deps: M1-3.
 - [ ] **M2-4 Text**: plain, bubble, label attached to a shape.
 - [ ] **M2-5 Colour and size pickers**, keyboard shortcuts for every tool.
