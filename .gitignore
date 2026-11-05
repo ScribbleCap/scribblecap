@@ -6,3 +6,4 @@ target/
 node_modules/
 dist/
 app/gen/schemas/
+ui/src/generated/
