@@ -2,3 +2,5 @@
 channel = "1.99.1"
 components = ["rustfmt", "clippy"]
 profile = "minimal"
+# The editor UI loads the core library as WebAssembly (decision 0011).
+targets = ["wasm32-unknown-unknown"]
