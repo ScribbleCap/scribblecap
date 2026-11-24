@@ -1,4 +1,4 @@
-# App shell (M2-1)
+# App shell and file output
 
 Svelte 5/TypeScript provides the shell inside Tauri 2; Canvas 2D displays images.
 [Decision 0006](decisions/0006-ui-framework.md) records the framework/native boundary.
@@ -8,7 +8,8 @@ Svelte 5/TypeScript provides the shell inside Tauri 2; Canvas 2D displays images
 **Open image** uses a native single-file picker. Rust's formats crate decodes PNG,
 JPEG, WebP, TIFF, BMP and GIF (first frame), including EXIF orientation. **Paste
 image** reads an image from the system clipboard. Text-only or unavailable clipboard
-content produces a recoverable message; the shell never changes the clipboard.
+content produces a recoverable message. Copy image writes pixels only when explicitly
+requested.
 
 An image initially fits the viewport without enlarging small images. Fit repeats
 that action. Clicking the percentage selects actual size (one image pixel per CSS
@@ -23,13 +24,15 @@ webview supports `AccentColor`. The image has a soft shadow and a hairline edge 
 dark images stay distinct from the dark canvas.
 
 The current image remains after cancellation or failure. Only one input request
-runs at a time; errors can be dismissed. This is a read-only shell: no source image
-is changed, annotations added, or file saved by M2-1.
+runs at a time; errors can be dismissed. Opening does not write source files.
+Explicit Save actions write the destination.
 
 | Input | Action |
 |---|---|
 | Ctrl/⌘ O | Open |
 | Ctrl/⌘ V / Paste button | Paste image |
+| Ctrl/⌘ C | Copy the annotated image |
+| Ctrl/⌘ S / Ctrl/⌘ Shift S | Save / Save As |
 | Ctrl/⌘ + or − / zoom buttons | Zoom around viewport center |
 | Ctrl/⌘ 0 / Fit | Fit |
 | Ctrl/⌘ 1 / percentage | Actual size |
@@ -38,8 +41,40 @@ is changed, annotations added, or file saved by M2-1.
 | Ctrl/⌘ + scroll/pinch | Zoom around pointer |
 
 Shortcuts avoid editable controls. Toolbar buttons expose labels, disabled/focus
-states; the viewport is focusable for keyboard panning. The header icon is the same
-generated PNG as the bundled app icon, not a substitute glyph.
+states; the viewport is focusable for keyboard editing and panning.
+
+## Copy, save and drag-out
+
+Copy image (Ctrl/⌘ C), Save (Ctrl/⌘ S) and Save As (Ctrl/⌘ Shift S) use the
+current WASM core document and source RGBA pixels. Rust's core renderer produces
+the complete image; selection handles and viewport zoom are excluded. The Share
+menu also offers Export flat. Output operations serialize with input and editing,
+and cancellation or failure leaves the current image and annotations intact.
+
+Save targets the opened path; pasted images and Save As use a native dialog. The
+filename extension selects PNG, JPEG, WebP, TIFF, BMP or GIF. Encoding completes
+before a same-folder temporary file is written, synced and atomically persisted.
+PNG, JPEG and WebP save the editable document, including the original normalized
+PNG background. TIFF, BMP and GIF require Export flat when annotations exist.
+
+Imported editable documents and their binary resources are preserved. This session
+adds annotations above the imported preview; new element IDs are remapped before
+merging them into the original document. Imported elements cannot yet be selected
+in the UI. Damaged imported metadata is an error, rather than silently treating the
+file as flat. Export flat refuses to replace existing editable or damaged files,
+including when reached through an alias, and keeps the Save destination unchanged.
+
+The thumbnail tab at the image corner starts a native PNG file drag while the
+primary button is held. It includes current annotations and editable data. Releasing
+before preparation finishes cancels dispatch. Keyboard activation copies instead.
+Share files remain alive until application shutdown for asynchronous recipients.
+See [decision 0013](decisions/0013-native-file-output.md) for native dependencies.
+
+Runtime smoke checks remain required on macOS, Windows and Linux: paste an image,
+draw an arrow, copy into another application; save/reopen PNG, JPEG and WebP;
+export flat TIFF, BMP and GIF; drag into a file manager and a chat/email application;
+cancel Save As; verify a failed save preserves the original. GTK delivery requires
+a real Linux session, in addition to passing Linux CI.
 
 ## Native pixel boundary
 
@@ -48,6 +83,9 @@ selection. `shell_paste_image` exposes image input only. Operations use a blocki
 worker; cancellation is an empty response. Nonempty responses contain:
 
 `SCIM`, version/width/height/name-length (u32 little-endian), UTF-8 basename, RGBA8.
+Version 1 has a 20-byte header. Version 2 adds a flags word at byte 20 (24-byte
+header), whose bit 0 identifies an imported editable document held by the native
+session. Unknown flags and versions are rejected.
 
 The frontend validates the packet before replacing its state. Tauri's raw response
 can arrive as ArrayBuffer or a byte array on WebKit; both are supported. This is an
@@ -56,13 +94,13 @@ in-process transport, not a saved file format.
 Encoded reads are limited to 512 MiB; display pixels to 256 MiB (roughly 67 million
 pixels). The formats decoder has its own limits. Source data, decoded pixels,
 transport buffers and canvases can coexist: these are not total memory limits.
-Frontend plugin commands receive no general filesystem, clipboard text or writing
-permissions. Source files remain unchanged.
+Frontend plugin commands receive no general filesystem or clipboard-text
+permissions. Purpose-built output commands perform native dialog-selected writes.
 
 The browser-only development preview uses a file input and browser-supported codecs
 and clipboard APIs. It is useful for layout testing but does not replace desktop
-format/clipboard testing. Editable-document restoration, save/export and annotation
-tools are later integration work.
+format/clipboard testing. Native saving and drag-out require the desktop app;
+imported annotation selection is later integration work.
 
 ## Validation
 
