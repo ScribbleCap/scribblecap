@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { listen } from '@tauri-apps/api/event';
   import * as bridge from './lib/bridge';
   import { loadCore, type Core, type Pt, type Shape, type WirePath } from './lib/core';
   import type { LoadedImage } from './lib/image-packet';
@@ -91,6 +92,13 @@
       if (type) return bridge.browserImage(await item.getType(type), 'Clipboard image');
     }
     throw new Error('There is no image on the clipboard. Copy an image and try again.');
+  }
+  function onDrop(event: DragEvent) {
+    event.preventDefault();
+    if (bridge.desktop || busy) return;
+    const files = Array.from(event.dataTransfer?.files ?? []);
+    if (files.length !== 1) { error = 'Drop one image at a time.'; return; }
+    void load(() => bridge.browserImage(files[0], files[0].name));
   }
   function pasteImage() { void load(clipboardImage); }
   function onPaste(event: ClipboardEvent) {
@@ -238,6 +246,13 @@
   }
 
   onMount(() => {
+    let unlisten: (() => void) | undefined;
+    let mounted = true;
+    if (bridge.desktop) {
+      void listen('shell-file-drop', () => { void load(bridge.droppedImage); }).then(stop => {
+        if (mounted) unlisten = stop; else stop();
+      }).catch(cause => { if (alive) error = String(cause); });
+    }
     ratio = window.devicePixelRatio || 1;
     const observer = new ResizeObserver(entries => {
       const bounds = entries[0].contentRect;
@@ -251,7 +266,7 @@
     const scheme = window.matchMedia?.('(prefers-color-scheme: dark)');
     const onScheme = () => { theme++; };
     scheme?.addEventListener?.('change', onScheme);
-    return () => { observer.disconnect(); scheme?.removeEventListener?.('change', onScheme); };
+    return () => { mounted = false; unlisten?.(); observer.disconnect(); scheme?.removeEventListener?.('change', onScheme); };
   });
   onDestroy(() => { alive = false; });
 
@@ -318,7 +333,7 @@
   });
 </script>
 
-<svelte:window onkeydown={onKey} onkeyup={onKeyUp} onpaste={onPaste} onblur={() => spaceHeld = false} />
+<svelte:window ondrop={onDrop} ondragover={(event) => event.preventDefault()} onkeydown={onKey} onkeyup={onKeyUp} onpaste={onPaste} onblur={() => spaceHeld = false} />
 <main aria-busy={busy} class:mac={mac && bridge.desktop}>
   <header class="titlebar" data-tauri-drag-region>
     <!-- Capture (M4-5) takes this place; until then Open and Paste sit here. -->

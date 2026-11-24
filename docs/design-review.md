@@ -118,5 +118,5 @@ Everything else stays quiet and native.
 | D3 Image edge/shadow; cache checkerboard tile | 11 | Done (`ui/d1-d3-theme-fit`) |
 | D4 Title-bar tools, remove logo and footer, canvas badge, quieter buttons | 2, 3, 4, 7, 14 | Done in M2-2 with the layout chosen in PR #24 (tools top right, zoom in the status bar); Capture pending M4-5; custom title bars on Windows/Linux pending |
 | D5 Native menus and per-platform shortcut labels | 6, 8 | With M2-5 |
-| D6 Drop files onto the window; drag-out handle | 9 | D6a drop: now; D6b drag-out: with M2-9 |
+| D6 Drop files onto the window; drag-out handle | 9 | D6a drop implemented and tested; D6b drag-out: with M2-9 |
 | D7 Tool-aware cursors and panning | 13 | Done in M2-2 |

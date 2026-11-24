@@ -1,7 +1,8 @@
 //! Native image input. No arbitrary filesystem commands are exposed to the UI.
 
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 use scribblecap_formats::RasterImage;
 use tauri::{AppHandle, Manager, ipc::Response};
@@ -62,6 +63,29 @@ fn set_title(app: &AppHandle, name: &str) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.set_title(&format!("{name} — ScribbleCap"));
     }
+}
+
+/// Only paths delivered by the native OS drop event are accepted.
+#[derive(Default)]
+pub struct DroppedImage(pub Mutex<Vec<PathBuf>>);
+
+#[tauri::command]
+pub async fn shell_drop_image(app: AppHandle) -> Result<Response, String> {
+    let paths = std::mem::take(
+        &mut *app
+            .state::<DroppedImage>()
+            .0
+            .lock()
+            .map_err(|_| "The file drop is unavailable.")?,
+    );
+    if paths.len() != 1 {
+        return Err("Drop one image at a time.".into());
+    }
+    let (name, bytes) = tauri::async_runtime::spawn_blocking(move || read_image(&paths[0]))
+        .await
+        .map_err(|e| format!("Image opening stopped: {e}"))??;
+    set_title(&app, &name);
+    Ok(Response::new(bytes))
 }
 
 #[tauri::command]

@@ -97,6 +97,9 @@ HEIF/AVIF, SVG and PDF follow after the first release (M6).
 _UI work follows the [design review](design-review.md): its D1–D7 items are
 scheduled alongside the tasks below (D1–D3 and D6a can start now)._
 
+- [x] **D6a Drop files onto the window.** Native single-image drops share the bounded
+  Open pipeline; failed drops preserve the document and listeners are cleaned up.
+
 - [x] **M2-1 App shell**: open file, paste image from clipboard,
   window, zoom/pan. Framework: [decision 0006](decisions/0006-ui-framework.md).
   Behavior and validation: [app-shell.md](app-shell.md).
