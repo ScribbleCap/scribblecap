@@ -69,8 +69,9 @@ table in `AGENTS.md`.
 - **Document = JSON tree** (layers → elements), close to Skitch's model (findings §4),
   which keeps a later Skitch re-edit feature simple. Every element also stores a ready-to-draw `path`, so
   older or simpler readers can render elements they don't understand.
-- **Commands for undo.** Every edit is a command applied to the document in `core`;
-  undo/redo is a command stack, not UI state.
+- **Undo history in `core`.** Every edit is applied to the document in `core`;
+  undo/redo is history kept in `core`, not UI state. It stores document snapshots
+  per step (`core::History`; see [editor.md](editor.md#undo-and-redo)).
 - **Background is immutable** except through explicit destructive operations (crop,
   pixelate/redact, resize), each of which is an undoable command.
 

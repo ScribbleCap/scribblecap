@@ -108,7 +108,8 @@ scheduled alongside the tasks below (D1–D3 and D6a can start now)._
 - [ ] **M2-3 Marker and highlighter.** Deps: M1-3.
 - [ ] **M2-4 Text**: plain, bubble, label attached to a shape.
 - [ ] **M2-5 Colour and size pickers**, keyboard shortcuts for every tool.
-- [ ] **M2-6 Undo/redo** for every operation.
+- [x] **M2-6 Undo/redo** for every operation. Snapshot history in `core`; see
+  [editor.md](editor.md#undo-and-redo).
 - [ ] **M2-7 Crop, resize, expand canvas, rotate/flip.**
 - [ ] **M2-8 Pixelate and redact** (destructive; original replaced in stored resource).
 - [ ] **M2-9 Copy, drag-out, save / save as** in every supported format.

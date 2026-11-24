@@ -1,4 +1,4 @@
-# Editor (M2-2)
+# Editor (M2-2, M2-6)
 
 The editor draws annotations on the open image. Shapes are edited through the core
 library running as WebAssembly ([decision 0011](decisions/0011-core-in-the-ui.md));
@@ -37,7 +37,25 @@ The layout from the [design review](design-review.md):
 - Cursors follow the tool: crosshair for drawing, move over a shape with Select,
   grab/grabbing while panning.
 - Colour and size are fixed defaults until M2-5 (pink `#e5194a`, 6 px outlines and
-  12 px arrows). Undo is M2-6.
+  12 px arrows).
+
+## Undo and redo
+
+| Action | macOS | Windows / Linux |
+|---|---|---|
+| Undo | ⌘Z | Ctrl+Z |
+| Redo | ⇧⌘Z | Ctrl+Y or Ctrl+Shift+Z |
+
+Undo and Redo buttons sit left of the tools. Each finished edit is one step: a drawn
+shape, a move, a resize, a delete, or a run of arrow-key nudges (one step when the
+key is released). A click that draws nothing adds no step. A new edit clears redo;
+opening or pasting an image starts a new history. Undo is ignored while a drag is in
+progress. After undo, the selection stays if its shape still exists.
+
+The history lives in the core (`scribblecap_core::History`) as whole-document
+snapshots, up to 500 steps. A document holds elements and resource ids, not image
+bytes, so snapshots are small, and every future operation (crop, pixelate, …) is
+undoable as long as it ends with a commit.
 
 Hit testing and handle dragging work on shape parameters (endpoints and rectangles)
 in `ui/src/lib/shapes.ts`. Painted outlines, arrowheads and rounded corners come only
@@ -57,9 +75,13 @@ changes nothing.
 | `{"op":"remove","id"}` | `null` |
 | `{"op":"paint"}` | `[{"id","paths"}]`, bottom-most first |
 | `{"op":"document"}` | the document JSON ([file-format.md](file-format.md)) |
+| `{"op":"commit"}` | `{"changed","canUndo","canRedo"}`; ends an undoable step if the document changed |
+| `{"op":"undo"}` / `{"op":"redo"}` | `{"elements","canUndo","canRedo"}`; `elements` is `[{"id","shape","paths"}]` bottom-most first, or `null` if there was no step |
 
 Shapes use the element JSON from `file-format.md` without `id`. Ids are `el-1`,
-`el-2`, … and are not reused within a document. A path is
+`el-2`, … and are not reused within a document, even after undo.
+`reset` clears the history. `undo` commits uncommitted changes first, so they are
+undone as one step. A path is
 `{"d": SVG path data, "fill": colour}` or
 `{"d", "stroke": colour, "width", "round"}`, in image pixels; `round` selects round
 caps and joins, otherwise butt caps and miter joins (limit 4), matching the flat
@@ -68,7 +90,7 @@ renderer.
 ## Validation
 
 `pnpm --dir ui test` builds the module and runs the UI tests against it: tool
-switching, drawing, ignoring a click, selecting, moving, resizing, nudging, deleting
-and Space-panning. `cargo test -p scribblecap-core-wasm` covers the protocol
+switching, drawing, ignoring a click, selecting, moving, resizing, nudging, deleting,
+Space-panning, and undo/redo of each edit. `cargo test -p scribblecap-core-wasm` covers the protocol
 natively. Manual check: run `pnpm --dir ui tauri dev`, open an image and draw each
 shape.

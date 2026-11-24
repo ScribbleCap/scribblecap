@@ -47,8 +47,9 @@ h1 { font-size: 20px; font-weight: 600; margin: 0 0 12px; }
 .titlebar { display: flex; gap: 16px; align-items: center; justify-content: space-between; min-height: 44px; padding: 6px 12px; background: var(--chrome); border-bottom: 1px solid var(--line); flex-shrink: 0; user-select: none; -webkit-user-select: none; }
 /* macOS overlay title bar: leave room for the window buttons. */
 .mac .titlebar { padding-left: 80px; }
-.input-actions, .zoom-actions, .tools { display: flex; gap: 4px; align-items: center; }
+.input-actions, .zoom-actions, .tools, .history-actions { display: flex; gap: 4px; align-items: center; }
 button.quiet { border-color: transparent; background: transparent; }
+.history-actions { margin-left: auto; gap: 2px; }
 .tools { padding: 2px; border-radius: 8px; background: var(--hover); }
 .tool { width: 34px; min-height: 30px; padding: 0; display: grid; place-items: center; border-color: transparent; background: transparent; color: var(--ink-2); }
 .tool[aria-pressed='true'] { color: var(--accent); background: var(--surface); border-color: var(--line); }
