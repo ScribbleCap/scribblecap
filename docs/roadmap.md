@@ -114,6 +114,8 @@ scheduled alongside the tasks below (D1–D3 and D6a can start now)._
 - [x] **M2-6 Undo/redo** for every operation. Snapshot history in `core`; see
   [editor.md](editor.md#undo-and-redo).
 - [ ] **M2-7 Crop, resize, expand canvas, rotate/flip.**
+  Raster operations implemented and tested; annotation transforms and undo
+  integration remain. See [canvas-transforms.md](canvas-transforms.md).
 - [ ] **M2-8 Pixelate and redact** (destructive; original replaced in stored resource).
 - [~] **M2-9 Copy, drag-out, save / save as** in every supported format (`agent/m2-9-file-actions`).
   Current annotations render through core; editable PNG/JPEG/WebP saves, explicit
