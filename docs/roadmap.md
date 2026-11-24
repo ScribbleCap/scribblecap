@@ -131,12 +131,14 @@ scheduled alongside the tasks below (D1–D3 and D6a can start now)._
 
 ## M5 — v1 polish
 
-- [ ] **M5-1 Packaging and releases** via GitHub Actions: pushing a `v*` tag builds on
+- [x] **M5-1 Packaging and releases** via GitHub Actions: pushing a `v*` tag builds on
   macOS (arm64 + x86_64), Windows and Linux runners and uploads `.dmg`, `.msi`,
   AppImage and `.deb` to a draft GitHub Release (`tauri-action` if Tauri, else
   `cargo-dist`). Signing: Apple Developer ID + notarisation (paid account) and Windows
   signing via SignPath Foundation (free for OSS); unsigned builds are allowed until then,
   with the warnings documented. Flathub submission as a follow-up.
+  Implemented by `.github/workflows/release.yml`; see [releases.md](releases.md).
+  The first live tagged build and installer smoke checks remain to be recorded.
 - [ ] **M5-2 Settings**, light/dark theme, HiDPI checks.
 - [ ] **M5-3 Accessibility pass** (keyboard-only, screen-reader labels).
 - [x] **M5-4 CLI**: `annotate`, `render`, `convert` with docs and examples ([cli.md](cli.md)).
