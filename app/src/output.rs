@@ -17,6 +17,14 @@ pub struct ShareState {
     cancelled: AtomicU32,
     files: Mutex<Vec<tempfile::TempDir>>,
 }
+/// Tauri exits the process without unwinding managed state; clean generated files
+/// explicitly on normal exit rather than relying on TempDir's destructor then.
+pub fn cleanup_share_files(app: &AppHandle) {
+    if let Ok(mut files) = app.state::<ShareState>().files.lock() {
+        files.clear();
+    }
+}
+
 #[tauri::command]
 pub fn shell_cancel_drag(app: AppHandle, gesture: u32) {
     app.state::<ShareState>()

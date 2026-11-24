@@ -34,6 +34,11 @@ fn main() {
             output::shell_drag_image,
             output::shell_cancel_drag
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running ScribbleCap");
+        .build(tauri::generate_context!())
+        .expect("error while building ScribbleCap")
+        .run(|app, event| {
+            if matches!(event, tauri::RunEvent::Exit) {
+                output::cleanup_share_files(app);
+            }
+        });
 }
