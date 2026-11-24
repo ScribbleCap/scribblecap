@@ -18,7 +18,7 @@ jobs:
 
   check:
     needs: changes
-    if: always()
+    if: ${{ !cancelled() }}
     name: ${{ matrix.platform }}
     runs-on: ${{ matrix.runner }}
     strategy:
