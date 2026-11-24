@@ -72,11 +72,22 @@ fn remember(
         .0
         .lock()
         .map_err(|_| "The image session is unavailable.")? = Session {
+        target: target.filter(|path| save_in_place(editable.is_some(), path)),
         editable,
         preview: Some(preview),
-        target,
     };
     Ok(())
+}
+
+/// Save writes an editable PNG. It goes straight back only to an editable PNG;
+/// any other opened file (a photo, a plain PNG) gets a new PNG chosen in a dialog,
+/// so the original is never replaced.
+pub(crate) fn save_in_place(editable: bool, path: &Path) -> bool {
+    editable
+        && path
+            .extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|e| e.eq_ignore_ascii_case("png"))
 }
 
 type OpenedInput = (String, Vec<u8>, Option<EditableDocument>, RasterImage);
@@ -238,5 +249,14 @@ mod tests {
         let one = PathBuf::from("one.png");
         assert_eq!(single_drop(vec![one.clone()]), Ok(Some(one)));
         assert!(single_drop(vec!["a.png".into(), "b.png".into()]).is_err());
+    }
+
+    #[test]
+    fn save_goes_back_only_to_an_editable_png() {
+        assert!(save_in_place(true, Path::new("notes.png")));
+        assert!(save_in_place(true, Path::new("NOTES.PNG")));
+        assert!(!save_in_place(false, Path::new("plain.png")));
+        assert!(!save_in_place(true, Path::new("photo.jpg")));
+        assert!(!save_in_place(true, Path::new("photo.webp")));
     }
 }

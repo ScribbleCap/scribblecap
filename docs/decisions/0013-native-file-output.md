@@ -25,8 +25,10 @@ generated file is supplied to the OS.
 Use `tempfile` 3 (MIT OR Apache-2.0) for private sharing directories and same-folder
 atomic save replacement. Encode completely before touching the destination, write
 and sync a temporary file, then persist it over the chosen destination. Save and
-Save As preserve imported editable payloads in PNG, JPEG and WebP. Export flat is
-explicit and refuses to replace an existing editable or damaged destination.
+Save As always write an editable PNG, and Save replaces the opened file only when it
+is already an editable PNG, so an opened photo is never re-encoded in place. Export
+flat is explicit, lets the user choose the format, and refuses to replace an
+existing editable or damaged destination. Saves keep a replaced file's permissions.
 
 ## Consequences
 

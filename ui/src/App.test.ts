@@ -329,7 +329,7 @@ describe('file output with the real editing core', () => {
     await fireEvent.pointerUp(viewport, { pointerId: 10 });
   }
   it('sends current editable annotations for copy, save, save-as and native drag', async () => {
-    vi.mocked(bridge.saveImage).mockResolvedValue('saved.webp');
+    vi.mocked(bridge.saveImage).mockResolvedValue('saved.png');
     await openAndDraw();
     await fireEvent.keyDown(window, { key: 'c', ctrlKey: true });
     await waitFor(() => expect(bridge.copyImage).toHaveBeenCalledOnce());
@@ -338,11 +338,11 @@ describe('file output with the real editing core', () => {
     expect(JSON.parse(document).elements[0].kind).toBe('arrow');
     await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Image copied'));
     await fireEvent.keyDown(window, { key: 's', ctrlKey: true, shiftKey: true });
-    await waitFor(() => expect(screen.getByLabelText('saved.webp, 2 by 1 pixels')).toBeTruthy());
+    await waitFor(() => expect(screen.getByLabelText('saved.png, 2 by 1 pixels')).toBeTruthy());
     expect(bridge.saveImage).toHaveBeenCalledWith(image(), document, true, false);
     const handle = screen.getByRole('button', { name: 'Drag image out; Enter copies the image' });
     await fireEvent.pointerDown(handle, { button: 0 });
-    await waitFor(() => expect(bridge.dragImage).toHaveBeenCalledWith(image('saved.webp'), document, 1));
+    await waitFor(() => expect(bridge.dragImage).toHaveBeenCalledWith(image('saved.png'), document, 1));
     await fireEvent.pointerUp(window);
     expect(bridge.cancelDrag).toHaveBeenCalledWith(1);
   });

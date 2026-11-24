@@ -51,11 +51,15 @@ the complete image; selection handles and viewport zoom are excluded. The Share
 menu also offers Export flat. Output operations serialize with input and editing,
 and cancellation or failure leaves the current image and annotations intact.
 
-Save targets the opened path; pasted images and Save As use a native dialog. The
-filename extension selects PNG, JPEG, WebP, TIFF, BMP or GIF. Encoding completes
-before a same-folder temporary file is written, synced and atomically persisted.
-PNG, JPEG and WebP save the editable document, including the original normalized
-PNG background. TIFF, BMP and GIF require Export flat when annotations exist.
+Save always writes an editable PNG. It goes straight back to the opened file only
+when that file is already an editable PNG; for any other file (a photo, a plain
+PNG) or a pasted image, the first Save opens a dialog suggesting `<name>.png`, so
+the original is never replaced. Later Saves go to that PNG. Save As always asks.
+Export flat offers PNG, JPEG, WebP, TIFF, BMP and GIF as separate file types and
+writes a flat image in the chosen one; a name typed without an extension becomes
+PNG. Encoding completes before a same-folder temporary file is written, synced and
+atomically persisted. A replaced file keeps its permissions; a new file gets 0644
+on macOS and Linux. Saved PNGs include the original normalized PNG background.
 
 Imported editable documents and their binary resources are preserved. This session
 adds annotations above the imported preview; new element IDs are remapped before

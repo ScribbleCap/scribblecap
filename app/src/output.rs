@@ -167,10 +167,49 @@ fn encode(
         scribblecap_formats::encode(image, format).map_err(|e| e.to_string())
     }
 }
+type FileFilters = &'static [(&'static str, &'static [&'static str])];
+const SAVE_FORMATS: FileFilters = &[("PNG image (editable)", &["png"])];
+const EXPORT_FORMATS: FileFilters = &[
+    ("PNG image", &["png"]),
+    ("JPEG image", &["jpg", "jpeg"]),
+    ("WebP image (smaller, keeps transparency)", &["webp"]),
+    ("TIFF image", &["tif", "tiff"]),
+    ("BMP image", &["bmp"]),
+    ("GIF image", &["gif"]),
+];
+
+/// `photo.jpg` → `photo.png`: both Save and Export start from a PNG name.
+fn suggested_name(name: &str) -> String {
+    Path::new(name)
+        .with_extension("png")
+        .to_string_lossy()
+        .into_owned()
+}
+
+/// An export typed without an extension becomes PNG rather than an error.
+fn with_default_extension(path: std::path::PathBuf) -> std::path::PathBuf {
+    if path.extension().is_some() {
+        path
+    } else {
+        path.with_extension("png")
+    }
+}
+
 fn atomic_save(path: &Path, bytes: &[u8]) -> Result<(), String> {
     let parent = path.parent().ok_or("The save folder is unavailable.")?;
     let mut temporary = tempfile::NamedTempFile::new_in(parent)
         .map_err(|e| format!("The save folder could not be written: {e}"))?;
+    // NamedTempFile is owner-only (0600) on Unix. Keep a replaced file's
+    // permissions; give a new file the usual permissions an editor would.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = std::fs::metadata(path).map_or(0o644, |m| m.permissions().mode() & 0o7777);
+        temporary
+            .as_file()
+            .set_permissions(std::fs::Permissions::from_mode(mode))
+            .map_err(|e| format!("The image could not be saved: {e}"))?;
+    }
     temporary
         .write_all(bytes)
         .and_then(|()| temporary.as_file().sync_all())
@@ -236,12 +275,7 @@ pub async fn shell_save_image(
         }
         let prepared = prepare(image, &document, editable.as_ref(), !flat)?;
         let target = if save_as || flat || target.is_none() {
-            let suggested = if Path::new(&name).extension().is_some() {
-                name
-            } else {
-                format!("{name}.png")
-            };
-            let selected = app
+            let mut dialog = app
                 .dialog()
                 .file()
                 .set_title(if flat {
@@ -249,26 +283,31 @@ pub async fn shell_save_image(
                 } else {
                     "Save image as"
                 })
-                .set_file_name(suggested)
-                .add_filter(
-                    "Images",
-                    &["png", "jpg", "jpeg", "webp", "tif", "tiff", "bmp", "gif"],
-                )
-                .blocking_save_file();
-            let Some(selected) = selected else {
+                .set_file_name(suggested_name(&name));
+            // Save always writes an editable PNG; Export offers each flat format.
+            for (label, extensions) in if flat { EXPORT_FORMATS } else { SAVE_FORMATS } {
+                dialog = dialog.add_filter(*label, extensions);
+            }
+            let Some(selected) = dialog.blocking_save_file() else {
                 return Ok(None);
             };
-            selected
+            let selected = selected
                 .into_path()
-                .map_err(|e| format!("The destination is unavailable: {e}"))?
+                .map_err(|e| format!("The destination is unavailable: {e}"))?;
+            if flat {
+                with_default_extension(selected)
+            } else {
+                selected.with_extension("png")
+            }
         } else {
             target.ok_or("The save destination is unavailable.")?
         };
-        let bytes = encode(
-            &prepared.preview,
-            format(&target)?,
-            prepared.editable.as_ref(),
-        )?;
+        let format = if flat {
+            format(&target)?
+        } else {
+            RasterFormat::Png
+        };
+        let bytes = encode(&prepared.preview, format, prepared.editable.as_ref())?;
         // Export flat always creates a separate file for editable inputs, even when
         // the user chooses the original path in the save dialog.
         if flat && target.exists() {
@@ -537,5 +576,37 @@ mod tests {
             );
         }
         assert!(encode(&image, RasterFormat::Tiff, Some(&editable)).is_err());
+    }
+
+    #[test]
+    fn save_and_export_suggest_a_png_name() {
+        assert_eq!(suggested_name("photo.jpg"), "photo.png");
+        assert_eq!(suggested_name("Clipboard image"), "Clipboard image.png");
+        let typed = std::path::PathBuf::from("/tmp/export");
+        assert_eq!(with_default_extension(typed), Path::new("/tmp/export.png"));
+        let webp = std::path::PathBuf::from("/tmp/export.webp");
+        assert_eq!(with_default_extension(webp.clone()), webp);
+        assert!(SAVE_FORMATS.iter().all(|(_, e)| *e == ["png"]));
+        for extension in EXPORT_FORMATS.iter().flat_map(|(_, e)| e.iter()) {
+            assert!(
+                format(Path::new(&format!("x.{extension}"))).is_ok(),
+                "{extension}"
+            );
+        }
+    }
+    #[cfg(unix)]
+    #[test]
+    fn saving_keeps_or_sets_normal_file_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        let directory = tempfile::tempdir().unwrap();
+        let mode = |p: &Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
+        let fresh = directory.path().join("new.png");
+        atomic_save(&fresh, b"x").unwrap();
+        assert_eq!(mode(&fresh), 0o644);
+        let existing = directory.path().join("shared.png");
+        std::fs::write(&existing, b"old").unwrap();
+        std::fs::set_permissions(&existing, std::fs::Permissions::from_mode(0o664)).unwrap();
+        atomic_save(&existing, b"new").unwrap();
+        assert_eq!(mode(&existing), 0o664);
     }
 }
