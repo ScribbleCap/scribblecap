@@ -102,13 +102,13 @@ jobs:
         run: |
           rustup toolchain install
           rustup target add '${{ matrix.target }}'
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           key: release-${{ matrix.target }}
       - name: Install UI dependencies
         run: pnpm --dir ui install --frozen-lockfile
       - name: Build installers and upload to draft release
-        uses: tauri-apps/tauri-action@v1
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # action-v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MACOSX_DEPLOYMENT_TARGET: '14.0'
@@ -120,4 +120,5 @@ jobs:
           releaseId: ${{ needs.prepare.outputs.release-id }}
           tagName: ${{ github.ref_name }}
           releaseDraft: true
-          args: --locked --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+          # tauri build has no --locked option; cargo arguments go after `--`.
+          args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} -- --locked

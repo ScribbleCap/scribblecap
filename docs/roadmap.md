@@ -131,7 +131,7 @@ scheduled alongside the tasks below (D1–D3 and D6a can start now)._
 
 ## M5 — v1 polish
 
-- [x] **M5-1 Packaging and releases** via GitHub Actions: pushing a `v*` tag builds on
+- [~] **M5-1 Packaging and releases** via GitHub Actions: pushing a `v*` tag builds on
   macOS (arm64 + x86_64), Windows and Linux runners and uploads `.dmg`, `.msi`,
   AppImage and `.deb` to a draft GitHub Release (`tauri-action` if Tauri, else
   `cargo-dist`). Signing: Apple Developer ID + notarisation (paid account) and Windows
