@@ -8,6 +8,7 @@ pub mod document;
 pub mod element;
 pub mod geom;
 pub mod geometry;
+pub mod history;
 pub mod path;
 pub mod render;
 
@@ -18,6 +19,7 @@ pub use element::{
     Step, Text, TextAlign, TextStyle,
 };
 pub use geom::{Point, Rect, Size};
+pub use history::History;
 pub use path::{Path, PathEl};
 
 /// Value of the top-level `"format"` key in a saved ScribbleCap document

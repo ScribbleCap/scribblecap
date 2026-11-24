@@ -50,6 +50,8 @@
   let gesture = $state.raw<Gesture | null>(null);
   let spaceHeld = $state(false);
   let hovering = $state(false);
+  let canUndo = $state(false);
+  let canRedo = $state(false);
   const paths2d = new WeakMap<WirePath, Path2D>();
   const zoomLabel = $derived(view.scale * 100 < 1 ? `${(view.scale * 100).toPrecision(2)}%` : `${Math.round(view.scale * 100)}%`);
   const cursor = $derived(
@@ -71,7 +73,7 @@
       if (!context) throw new Error('The image canvas could not be created.');
       context.putImageData(new ImageData(next.pixels, next.width, next.height), 0, 0);
       core.reset(next.width, next.height);
-      items = []; selected = null; gesture = null;
+      items = []; selected = null; gesture = null; canUndo = false; canRedo = false;
       source = nextSource; image = next;
       view = fitViewport(next, area); fitted = true;
       document.title = `${next.name} — ScribbleCap`;
@@ -126,6 +128,21 @@
     try { core.remove(selected); items = items.filter(item => item.id !== selected); selected = null; }
     catch (cause) { report(cause); }
   }
+  /** End an undoable step. Every finished edit calls this; unchanged steps are dropped. */
+  function commit() {
+    if (!core) return;
+    try { ({ canUndo, canRedo } = core.commit()); } catch (cause) { report(cause); }
+  }
+  function travel(direction: 'undo' | 'redo') {
+    if (!core || !image || gesture) return;
+    try {
+      const restored = direction === 'undo' ? core.undo() : core.redo();
+      ({ canUndo, canRedo } = restored);
+      if (!restored.elements) return;
+      items = restored.elements;
+      if (!items.some(item => item.id === selected)) selected = null;
+    } catch (cause) { report(cause); }
+  }
   function nudge(dx: number, dy: number) {
     const item = items.find(item => item.id === selected);
     if (item) apply(item.id, translate(item.shape, dx, dy));
@@ -151,7 +168,9 @@
     if (editableTarget(event.target) || event.altKey) return;
     const key = event.key.toLowerCase();
     if (event.metaKey || event.ctrlKey) {
-      if (['o', 'v', '+', '=', '-', '0', '1'].includes(key)) event.preventDefault();
+      if (['o', 'v', 'z', 'y', '+', '=', '-', '0', '1'].includes(key)) event.preventDefault();
+      if (key === 'z') travel(event.shiftKey ? 'redo' : 'undo');
+      if (key === 'y' && !mac) travel('redo');
       if (key === 'o' && !event.repeat) openImage();
       if (key === 'v' && !event.repeat) pasteImage();
       if (key === '+' || key === '=') zoom(1.25);
@@ -163,7 +182,7 @@
     if (!image) return;
     if (event.key === ' ') { event.preventDefault(); spaceHeld = true; return; }
     if (event.key === 'Escape') { selected = null; return; }
-    if ((event.key === 'Delete' || event.key === 'Backspace') && selected) { event.preventDefault(); removeSelected(); return; }
+    if ((event.key === 'Delete' || event.key === 'Backspace') && selected) { event.preventDefault(); removeSelected(); commit(); return; }
     if (!event.shiftKey && TOOL_KEYS[key]) { event.preventDefault(); chooseTool(TOOL_KEYS[key]); return; }
     const delta: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
     const d = delta[event.key];
@@ -172,7 +191,11 @@
     if (selected) { const step = event.shiftKey ? 10 : 1; nudge(d[0] * step, d[1] * step); }
     else { view = panBy(view, -d[0] * 32, -d[1] * 32); fitted = false; }
   }
-  function onKeyUp(event: KeyboardEvent) { if (event.key === ' ') spaceHeld = false; }
+  function onKeyUp(event: KeyboardEvent) {
+    if (event.key === ' ') spaceHeld = false;
+    // Nudges held down or repeated end as one step when the arrow key is released.
+    if (event.key.startsWith('Arrow')) commit();
+  }
   function onWheel(event: WheelEvent) {
     if (!image) return;
     event.preventDefault();
@@ -235,6 +258,7 @@
     if (stage.hasPointerCapture(event.pointerId)) stage.releasePointerCapture(event.pointerId);
     // A click without a drag draws nothing.
     if (g.kind === 'create' && !g.moved) removeSelected();
+    if (g.kind !== 'pan') commit();
   }
 
   onMount(() => {
@@ -325,6 +349,14 @@
     <div class="input-actions">
       <button class="quiet" onclick={openImage} disabled={busy} title={`Open image (${mod}O)`}>Open image</button>
       <button class="quiet" onclick={pasteImage} disabled={busy} title={`Paste image (${mod}V)`}>Paste image</button>
+    </div>
+    <div class="history-actions">
+      <button class="tool" aria-label="Undo" title={`Undo (${mod}Z)`} disabled={!canUndo || !!gesture} onclick={() => travel('undo')}>
+        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+      </button>
+      <button class="tool" aria-label="Redo" title={mac ? 'Redo (⇧⌘Z)' : 'Redo (Ctrl+Y)'} disabled={!canRedo || !!gesture} onclick={() => travel('redo')}>
+        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 14l5-5-5-5M20 9H10a6 6 0 000 12h3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+      </button>
     </div>
     <div class="tools" role="toolbar" aria-label="Tools">
       {#each TOOLS as t (t.tool)}

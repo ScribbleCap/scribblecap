@@ -4,13 +4,14 @@
 //! is documented in `docs/editor.md`.
 
 use scribblecap_core::geometry::{PaintStyle, shape_paths};
-use scribblecap_core::{Document, Element, ElementId, Shape, Size};
+use scribblecap_core::{Document, Element, ElementId, History, Shape, Size};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-/// One open document plus the id counter for new elements.
+/// One open document, its undo history and the id counter for new elements.
 pub struct Editor {
     document: Document,
+    history: History,
     next_id: u64,
 }
 
@@ -29,6 +30,12 @@ enum Request {
     Paint,
     /// The document as saved JSON (`docs/file-format.md`).
     Document,
+    /// End an undoable step: record the document if it changed since the last step.
+    Commit,
+    /// Go back one step (uncommitted changes count as a step).
+    Undo,
+    /// Go forward one step after an undo.
+    Redo,
 }
 
 /// A path ready for Canvas 2D: SVG path data plus how to paint it.
@@ -48,8 +55,10 @@ struct WirePath {
 
 impl Default for Editor {
     fn default() -> Self {
+        let document = Document::new(Size::new(1.0, 1.0));
         Self {
-            document: Document::new(Size::new(1.0, 1.0)),
+            history: History::new(document.clone()),
+            document,
             next_id: 1,
         }
     }
@@ -73,6 +82,7 @@ impl Editor {
             Request::Reset { canvas } => {
                 let document = Document::new(canvas);
                 document.validate().map_err(|e| e.to_string())?;
+                self.history = History::new(document.clone());
                 self.document = document;
                 self.next_id = 1;
                 Ok(Value::Null)
@@ -109,12 +119,51 @@ impl Editor {
                 }
                 Ok(Value::Array(out))
             }
+            Request::Commit => {
+                let changed = self.history.commit(&self.document);
+                Ok(
+                    json!({ "changed": changed, "canUndo": self.history.can_undo(), "canRedo": self.history.can_redo() }),
+                )
+            }
+            Request::Undo => {
+                let state = self.history.undo(&self.document);
+                self.restore(state)
+            }
+            Request::Redo => {
+                let state = self.history.redo();
+                self.restore(state)
+            }
             Request::Document => self
                 .document
                 .to_json()
                 .map(Value::String)
                 .map_err(|e| e.to_string()),
         }
+    }
+
+    /// Show a state from the history. Responds with every element (id, shape and
+    /// paths, bottom-most first), or `elements: null` when there was no step.
+    fn restore(&mut self, state: Option<Document>) -> Result<Value, String> {
+        let elements = match state {
+            Some(document) => {
+                self.document = document;
+                let mut out = Vec::with_capacity(self.document.elements.len());
+                for element in &self.document.elements {
+                    out.push(json!({
+                        "id": element.id,
+                        "shape": element.shape,
+                        "paths": paths(&element.shape)?,
+                    }));
+                }
+                Value::Array(out)
+            }
+            None => Value::Null,
+        };
+        Ok(json!({
+            "elements": elements,
+            "canUndo": self.history.can_undo(),
+            "canRedo": self.history.can_redo(),
+        }))
     }
 
     /// Apply `edit` to a copy, validate it, compute the changed element's paths,
@@ -229,6 +278,62 @@ mod tests {
         assert!(response.contains("bad request"), "{response}");
         let painted = ok(&mut editor, json!({ "op": "paint" }));
         assert_eq!(painted.as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn undo_and_redo_restore_shapes() {
+        let mut editor = Editor::default();
+        ok(&mut editor, json!({ "op": "reset", "canvas": [200, 100] }));
+        let nothing = ok(&mut editor, json!({ "op": "undo" }));
+        assert_eq!(nothing["elements"], Value::Null);
+
+        ok(&mut editor, json!({ "op": "add", "shape": arrow() }));
+        let step = ok(&mut editor, json!({ "op": "commit" }));
+        assert_eq!(
+            step,
+            json!({ "changed": true, "canUndo": true, "canRedo": false })
+        );
+        let moved = json!({ "kind": "arrow", "start": [20, 20], "end": [130, 90], "color": "#e5194a", "width": 8 });
+        ok(
+            &mut editor,
+            json!({ "op": "update", "id": "el-1", "shape": moved }),
+        );
+        ok(&mut editor, json!({ "op": "commit" }));
+        let again = ok(&mut editor, json!({ "op": "commit" }));
+        assert_eq!(again["changed"], false);
+
+        let back = ok(&mut editor, json!({ "op": "undo" }));
+        assert_eq!(back["elements"][0]["id"], "el-1");
+        assert_eq!(back["elements"][0]["shape"]["start"], json!([10.0, 10.0]));
+        assert!(back["elements"][0]["paths"][0]["d"].is_string());
+        assert_eq!(back["canRedo"], true);
+        let empty = ok(&mut editor, json!({ "op": "undo" }));
+        assert_eq!(empty["elements"], json!([]));
+        assert_eq!(empty["canUndo"], false);
+
+        ok(&mut editor, json!({ "op": "redo" }));
+        let forward = ok(&mut editor, json!({ "op": "redo" }));
+        assert_eq!(
+            forward["elements"][0]["shape"]["start"],
+            json!([20.0, 20.0])
+        );
+        assert_eq!(forward["canRedo"], false);
+
+        // New ids continue after undo, so a redo can never clash with a new element.
+        ok(&mut editor, json!({ "op": "undo" }));
+        let added = ok(&mut editor, json!({ "op": "add", "shape": arrow() }));
+        assert_eq!(added["id"], "el-2");
+    }
+
+    #[test]
+    fn reset_clears_history() {
+        let mut editor = Editor::default();
+        ok(&mut editor, json!({ "op": "reset", "canvas": [200, 100] }));
+        ok(&mut editor, json!({ "op": "add", "shape": arrow() }));
+        ok(&mut editor, json!({ "op": "commit" }));
+        ok(&mut editor, json!({ "op": "reset", "canvas": [300, 100] }));
+        let nothing = ok(&mut editor, json!({ "op": "undo" }));
+        assert_eq!(nothing["elements"], Value::Null);
     }
 
     #[test]

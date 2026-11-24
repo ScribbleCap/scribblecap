@@ -14,12 +14,21 @@ export type Shape =
 /** A path in image pixels: SVG path data plus how to paint it. */
 export interface WirePath { d: string; fill?: string; stroke?: string; width?: number; round?: boolean }
 
+/** Undo/redo availability after a history request. */
+export interface HistoryState { canUndo: boolean; canRedo: boolean }
+/** A state restored by undo/redo: every element, bottom-most first; null if there was no step. */
+export interface Restored extends HistoryState { elements: { id: string; shape: Shape; paths: WirePath[] }[] | null }
+
 export interface Core {
   reset(width: number, height: number): void;
   add(shape: Shape): { id: string; paths: WirePath[] };
   update(id: string, shape: Shape): WirePath[];
   remove(id: string): void;
   document(): string;
+  /** End an undoable step (no-op if nothing changed). */
+  commit(): HistoryState & { changed: boolean };
+  undo(): Restored;
+  redo(): Restored;
 }
 
 interface Exports {
@@ -58,6 +67,9 @@ export async function createCore(bytes: BufferSource): Promise<Core> {
     update: (id, shape) => (call({ op: 'update', id, shape }) as { paths: WirePath[] }).paths,
     remove: id => { call({ op: 'remove', id }); },
     document: () => call({ op: 'document' }) as string,
+    commit: () => call({ op: 'commit' }) as HistoryState & { changed: boolean },
+    undo: () => call({ op: 'undo' }) as Restored,
+    redo: () => call({ op: 'redo' }) as Restored,
   };
 }
 

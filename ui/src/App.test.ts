@@ -206,6 +206,69 @@ describe('annotation tools', () => {
     await fireEvent.pointerMove(viewport, { pointerId: 2, isPrimary: true, clientX: 220, clientY: 260 });
     expect(viewport.style.cursor).toBe('default');
   });
+  it('undoes and redoes drawing, moving, deleting and nudging', async () => {
+    const viewport = await openBig();
+    const undo = screen.getByRole('button', { name: 'Undo' }) as HTMLButtonElement;
+    const redo = screen.getByRole('button', { name: 'Redo' }) as HTMLButtonElement;
+    const hoverCursor = async (x: number, y: number) => {
+      await fireEvent.pointerMove(viewport, { pointerId: 2, isPrimary: true, clientX: x, clientY: y });
+      return viewport.style.cursor;
+    };
+    expect(undo.disabled && redo.disabled).toBe(true);
+    await fireEvent.keyDown(window, { key: 'l' });
+    // A click draws nothing, so there is nothing to undo.
+    await fireEvent.pointerDown(viewport, { pointerId: 1, button: 0, isPrimary: true, clientX: 250, clientY: 250 });
+    await fireEvent.pointerUp(viewport, { pointerId: 1 });
+    expect(undo.disabled).toBe(true);
+    await drag(viewport, [220, 220], [320, 220]);
+    expect(undo.disabled).toBe(false);
+    await fireEvent.keyDown(window, { key: 'v' });
+    await drag(viewport, [270, 220], [270, 260]);
+    expect(await hoverCursor(270, 260)).toBe('move');
+
+    await fireEvent.keyDown(window, { key: 'z', ctrlKey: true });
+    expect(await hoverCursor(270, 260)).toBe('default');
+    expect(await hoverCursor(270, 220)).toBe('move');
+    expect(redo.disabled).toBe(false);
+    await fireEvent.click(undo);
+    expect(await hoverCursor(270, 220)).toBe('default');
+    expect(undo.disabled).toBe(true);
+
+    await fireEvent.keyDown(window, { key: 'z', ctrlKey: true, shiftKey: true });
+    expect(await hoverCursor(270, 220)).toBe('move');
+    await fireEvent.keyDown(window, { key: 'y', ctrlKey: true });
+    expect(await hoverCursor(270, 260)).toBe('move');
+    expect(redo.disabled).toBe(true);
+
+    // Held arrow keys are one step, ended by releasing the key.
+    await fireEvent.pointerDown(viewport, { pointerId: 3, button: 0, isPrimary: true, clientX: 270, clientY: 260 });
+    await fireEvent.pointerUp(viewport, { pointerId: 3 });
+    await fireEvent.keyDown(window, { key: 'ArrowDown', shiftKey: true });
+    await fireEvent.keyDown(window, { key: 'ArrowDown', shiftKey: true, repeat: true });
+    await fireEvent.keyUp(window, { key: 'ArrowDown' });
+    expect(await hoverCursor(270, 280)).toBe('move');
+    await fireEvent.click(undo);
+    expect(await hoverCursor(270, 260)).toBe('move');
+
+    // Delete is undoable; a new edit clears redo.
+    await fireEvent.pointerDown(viewport, { pointerId: 4, button: 0, isPrimary: true, clientX: 270, clientY: 260 });
+    await fireEvent.pointerUp(viewport, { pointerId: 4 });
+    await fireEvent.keyDown(window, { key: 'Delete' });
+    expect(await hoverCursor(270, 260)).toBe('default');
+    await fireEvent.click(undo);
+    expect(await hoverCursor(270, 260)).toBe('move');
+    expect(redo.disabled).toBe(false);
+    await fireEvent.keyDown(window, { key: 'l' });
+    await drag(viewport, [220, 300], [320, 300]);
+    expect(redo.disabled).toBe(true);
+  });
+  it('starts a new history for each opened image', async () => {
+    const viewport = await openBig();
+    await drag(viewport, [220, 220], [320, 260]);
+    expect((screen.getByRole('button', { name: 'Undo' }) as HTMLButtonElement).disabled).toBe(false);
+    await fireEvent.click(screen.getByRole('button', { name: 'Open image' }));
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Undo' }) as HTMLButtonElement).disabled).toBe(true));
+  });
   it('pans with Space held instead of drawing', async () => {
     const viewport = await openBig();
     await fireEvent.keyDown(window, { key: ' ' });

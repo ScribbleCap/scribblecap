@@ -31,6 +31,22 @@ describe('core WebAssembly module', () => {
     expect(() => core.remove('missing')).toThrow(/no element missing/);
     expect(JSON.parse(core.document()).elements[0].width).toBe(4);
   });
+  it('undoes and redoes committed steps', async () => {
+    const core = await createCore(bytes);
+    core.reset(200, 100);
+    expect(core.undo()).toEqual({ elements: null, canUndo: false, canRedo: false });
+    const { id } = core.add({ kind: 'line', start: [0, 0], end: [10, 10], color: '#e5194a', width: 4 });
+    expect(core.commit()).toEqual({ changed: true, canUndo: true, canRedo: false });
+    core.update(id, { kind: 'line', start: [5, 5], end: [10, 10], color: '#e5194a', width: 4 });
+    core.commit();
+    const back = core.undo();
+    expect(back.elements).toHaveLength(1);
+    expect(back.elements![0]).toMatchObject({ id, shape: { kind: 'line', start: [0, 0] } });
+    expect(back.elements![0].paths[0].d).toMatch(/^M /);
+    expect(core.undo()).toMatchObject({ elements: [], canUndo: false, canRedo: true });
+    core.redo();
+    expect(core.redo().elements![0].shape).toMatchObject({ start: [5, 5] });
+  });
   it('handles large requests and responses across memory growth', async () => {
     const core = await createCore(bytes);
     core.reset(10000, 10000);
