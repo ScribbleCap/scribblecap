@@ -1,0 +1,27 @@
+name: Detect non-documentation changes
+
+on:
+  workflow_call:
+    outputs:
+      code:
+        description: Whether full checks are needed
+        value: ${{ jobs.detect.outputs.code }}
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.scope.outputs.code }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/github-script@v8
+        id: scope
+        with:
+          script: |
+            const detect = require('./.github/scripts/change-scope.cjs');
+            core.setOutput('code', detect(context, message => core.warning(message)));

@@ -95,3 +95,8 @@ pnpm --dir ui tauri icon ../assets/icon/scribblecap-1024.png -o ../app/icons
 ```
 
 All of these must pass before a change is ready (CI runs the same list).
+
+CI detects documentation-only changes (`**/*.md`, `docs/**`, root `LICENSE*`):
+`linux`, `windows`, and `macos` still report success, but skip toolchain installation,
+builds and tests. CodeQL also skips analysis for these PRs/pushes; scheduled and
+manual scans always run. Any other changed file runs the full checks.
