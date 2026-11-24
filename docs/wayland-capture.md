@@ -26,8 +26,16 @@ dialog is nonmodal and desktop placement is controlled by the portal.
 PNG data is decoded through the normal raster decoder. Only local `file:` URIs
 are accepted; percent-encoded filenames are supported. Portal files are left
 in place because the portal controls their lifetime. File reads stop at 512 MiB;
-the decoder's allocation limits apply, and decoded RGBA output is capped at the
-editor/renderer budget of 256 MiB.
+`scribblecap_formats::decode` uses the codecs' default allocation limits and,
+before decoding pixel data, reserves the larger of the codec output size and
+normalized RGBA size against `image::Limits::default()` (currently 512 MiB).
+The formats regression test `rejects_oversized_output_before_allocating_pixels`
+covers this check using an oversized image header without a pixel payload.
+
+The capture backend's separate 256 MiB RGBA budget is checked after decoding;
+it is an acceptance limit, not a promise that the decoder allocates at most
+256 MiB. Neither limit caps total process memory or the sum of encoded data,
+codec working memory and output buffers.
 
 ## Validation
 

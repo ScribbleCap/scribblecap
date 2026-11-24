@@ -41,6 +41,8 @@ pub(crate) fn load(uri: &str) -> Result<CapturedImage> {
     let file = std::fs::File::open(path)
         .map_err(|error| CaptureError::Os(format!("reading portal screenshot: {error}")))?;
     let bytes = read_limited(file, MAX_FILE_BYTES)?;
+    // decode checks codec/output allocation limits before allocating pixel buffers;
+    // this backend additionally rejects completed RGBA images above its lower budget.
     let image = scribblecap_formats::decode(&bytes)
         .map_err(|error| CaptureError::Os(format!("decoding portal screenshot: {error}")))?
         .image;

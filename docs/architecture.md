@@ -26,7 +26,7 @@ _Status: accepted stack ([0001-tech-stack](decisions/0001-tech-stack.md)); modul
 | `core` | Document model, JSON (de)serialisation, undo history, **geometry** (arrow outline, freehand smoothing + curve fit, shapes, text layout boxes), flat rendering for export (tiny-skia) | UI, OS APIs |
 | `formats` | Read/write images (PNG, JPEG, HEIF/AVIF, WebP, TIFF, BMP, GIF, SVG→raster), embed/extract the editable document | UI, OS APIs |
 | `pdf` (added in M6) | Render PDF pages, write standard annotations + embedded document as an incremental update | UI, OS APIs |
-| `capture` | Screen/window/region capture, one backend per OS | UI |
+| `capture` | Screen/window/region capture, one backend per OS; Linux uses `formats` at runtime to decode portal screenshots | UI |
 
 `capture` exposes one `Capturer` trait (`list_windows`, `displays`, `capture_screen`,
 `capture_window`, `capture_region`) in desktop points; images come back as sRGB RGBA8
