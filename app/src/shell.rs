@@ -24,7 +24,7 @@ fn read_limited(reader: impl Read, limit: u64) -> Result<Vec<u8>, String> {
     Ok(bytes)
 }
 
-fn packet(name: &str, image: RasterImage) -> Result<Vec<u8>, String> {
+pub(crate) fn packet(name: &str, image: RasterImage) -> Result<Vec<u8>, String> {
     if image.pixels().len() > MAX_IMAGE_BYTES {
         return Err("This image is too large to display (about 67 million pixels maximum).".into());
     }

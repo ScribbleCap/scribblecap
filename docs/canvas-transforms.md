@@ -15,7 +15,8 @@ Quarter turns and flips preserve every channel exactly, including transparent RG
 Resize uses nearest-neighbour sampling, preserving screenshot edges and avoiding
 alpha interpolation fringes. The browser development preview uses Canvas 2D.
 
-This implements transforms for the current raster-only shell. M2-7 remains open for
+This implements raster-only transforms within the editor. Controls are disabled
+when annotations are present or imported editable metadata exists. M2-7 remains open for
 integration with editable annotations and M2-6 history: annotations must remain
 editable and undo must retain the previous resource. The current document schema
 cannot represent rotated/reflected text or badge artwork; that needs an explicit

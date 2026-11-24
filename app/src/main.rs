@@ -3,6 +3,7 @@
 // Hide the extra console window on Windows release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod canvas;
 mod output;
 #[cfg(target_os = "linux")]
 mod output_linux;
@@ -30,6 +31,7 @@ fn main() {
             shell::shell_paste_image,
             shell::shell_drop_image,
             output::shell_copy_image,
+            canvas::shell_transform_image,
             output::shell_save_image,
             output::shell_drag_image,
             output::shell_cancel_drag

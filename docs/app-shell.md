@@ -130,3 +130,13 @@ Drop one image anywhere on the window to open it. Native OS paths enter the same
 bounded decoder as Open; JavaScript cannot supply a filesystem path. A failed or
 multiple-file drop leaves the current image and annotations intact. Browser-only
 preview supports one dropped Blob. Native drop delivery still needs desktop smoke tests.
+
+## Raster canvas transforms (M2-7 milestone)
+
+The Canvas menu provides crop, resize, transparent expansion, quarter-turn rotations
+and flips through the shared core implementation. Dimensions use source pixels,
+independent of zoom. Transforms fit the new raster and never write files by themselves.
+
+Transforms are disabled while the editor contains new annotations or the imported
+image has editable metadata, so this milestone cannot silently discard annotations.
+Document-wide transforms and undo history remain pending; see [canvas-transforms.md](canvas-transforms.md).

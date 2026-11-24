@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { listen } from '@tauri-apps/api/event';
   import * as bridge from './lib/bridge';
+  import CanvasControls from './lib/CanvasControls.svelte';
   import { loadCore, type Core, type Pt, type Shape, type WirePath } from './lib/core';
   import type { LoadedImage } from './lib/image-packet';
   import { create, dragHandle, handles, topmostAt, translate, DEFAULT_STYLE, TOOL_KEYS, type Handle, type Tool } from './lib/shapes';
@@ -58,6 +59,7 @@
   let canRedo = $state(false);
   const paths2d = new WeakMap<WirePath, Path2D>();
   const zoomLabel = $derived(view.scale * 100 < 1 ? `${(view.scale * 100).toPrecision(2)}%` : `${Math.round(view.scale * 100)}%`);
+  const transformSource = $derived(image && items.length ? { ...image, editable: true } : image);
   const cursor = $derived(
     gesture?.kind === 'pan' ? 'grabbing'
       : spaceHeld ? 'grab'
@@ -418,6 +420,7 @@
         <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 14l5-5-5-5M20 9H10a6 6 0 000 12h3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
       </button>
     </div>
+    <CanvasControls image={transformSource} {busy} {load} />
     <div class="tools" role="toolbar" aria-label="Tools">
       {#each TOOLS as t (t.tool)}
         <button class="tool" aria-label={t.label} aria-pressed={tool === t.tool} title={`${t.label} (${t.key})`} disabled={!image || busy} onclick={() => chooseTool(t.tool)}>
