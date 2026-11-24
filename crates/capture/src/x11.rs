@@ -49,8 +49,7 @@ impl X11Capturer {
             env("WAYLAND_DISPLAY").as_deref(),
         ) {
             return Err(CaptureError::Unsupported(
-                "Wayland sessions need the xdg-desktop-portal backend (roadmap M4-4); \
-                 XWayland can't see Wayland windows",
+                "use the portal backend on Wayland; XWayland cannot see Wayland windows",
             ));
         }
         if env("DISPLAY").is_none_or(|d| d.is_empty()) {

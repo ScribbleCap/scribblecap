@@ -44,8 +44,12 @@ screen/region, and Composite `NameWindowPixmap` for windows (so covered windows 
 whole under a compositing manager; without one, covered parts show what is on top).
 X11 has no scale factor (scale 1, points = pixels), needs no permission, and cannot
 exclude our own windows from root captures, so the app hides them first. A Wayland
-session (`XDG_SESSION_TYPE=wayland` or `WAYLAND_DISPLAY` set) returns
-`Unsupported` until the portal backend (M4-4). Pure helpers (pixel decoding, region
+session (`XDG_SESSION_TYPE=wayland` or `WAYLAND_DISPLAY` set) selects the
+xdg-desktop-portal Screenshot backend instead of XWayland. It supports interactive
+`capture_screen(None)` only, returns pixel-space scale 1, and cannot enumerate
+windows/displays or honour native IDs/desktop-coordinate regions. See
+[wayland-capture.md](wayland-capture.md) and [decision 0012](decisions/0012-wayland-screenshot.md).
+Pure helpers (pixel decoding, region
 rounding, session detection) live in `x11_pixels.rs` and are tested on every OS.
 | `app` | Tauri shell: windows, menus, clipboard, drag-and-drop, settings, hotkeys | — |
 | `ui` | Svelte 5/TypeScript editor front-end, Canvas 2D viewport | OS APIs (goes through `app`) |

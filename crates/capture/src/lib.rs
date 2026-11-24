@@ -11,6 +11,10 @@ use std::fmt;
 
 #[cfg(target_os = "macos")]
 mod macos;
+#[cfg(target_os = "linux")]
+mod wayland;
+#[cfg(any(target_os = "linux", test))]
+mod wayland_image;
 #[cfg(target_os = "windows")]
 mod windows;
 #[cfg(any(target_os = "windows", test))]
@@ -79,7 +83,8 @@ pub struct CapturedImage {
     pub height: u32,
     pub pixels: Vec<u8>,
     /// Pixels per desktop point. Windows uses the system DPI scale, including
-    /// on secondary monitors; other backends use the source display's scale.
+    /// on secondary monitors; macOS uses the source display's scale. The Wayland
+    /// Screenshot portal supplies no DPI metadata, so it returns pixel-space scale 1.
     pub scale: f64,
 }
 
@@ -90,8 +95,7 @@ pub enum CaptureError {
     PermissionDenied,
     /// No such window or display, or the region is off every display.
     NotFound,
-    /// Capture isn't available on this OS (version) or session yet (e.g. Linux
-    /// Wayland, or no X11 display).
+    /// Capture or the requested operation isn't available on this OS/session.
     Unsupported(&'static str),
     /// The OS capture API failed.
     Os(String),
@@ -117,12 +121,18 @@ pub type Result<T> = std::result::Result<T, CaptureError>;
 pub trait Capturer {
     /// Whether the app may capture the screen without asking.
     fn has_permission(&self) -> bool;
-    /// Ask the OS for permission (may show a system prompt). Returns the current state.
+    /// Prepare permission for a capture (may show a system prompt). True means
+    /// callers may proceed with a capture request, not that it must succeed.
+    /// On macOS/Windows this reports the current permission state. Wayland has
+    /// per-capture confirmation: this returns true without granting permission;
+    /// the portal asks during `capture_screen`, not here.
     fn request_permission(&self) -> bool;
     fn displays(&self) -> Result<Vec<DisplayInfo>>;
     /// Normal on-screen windows, front to back. Excludes this app's own windows.
     fn list_windows(&self) -> Result<Vec<WindowInfo>>;
     /// A whole display (`None` = the primary one), without this app's windows.
+    /// On Wayland only `None` is supported: the portal controls the capture target,
+    /// and cannot promise primary-display selection or own-window exclusion.
     fn capture_screen(&self, display: Option<u32>) -> Result<CapturedImage>;
     /// One window by [`WindowInfo::id`], even if other windows cover it.
     fn capture_window(&self, id: u32) -> Result<CapturedImage>;
@@ -139,7 +149,14 @@ pub fn backend() -> Result<Box<dyn Capturer>> {
     }
     #[cfg(target_os = "linux")]
     {
-        x11::X11Capturer::new().map(|c| Box::new(c) as Box<dyn Capturer>)
+        if x11_pixels::is_wayland_session(
+            std::env::var("XDG_SESSION_TYPE").ok().as_deref(),
+            std::env::var("WAYLAND_DISPLAY").ok().as_deref(),
+        ) {
+            Ok(Box::new(wayland::WaylandCapturer))
+        } else {
+            x11::X11Capturer::new().map(|c| Box::new(c) as Box<dyn Capturer>)
+        }
     }
     #[cfg(target_os = "windows")]
     {
