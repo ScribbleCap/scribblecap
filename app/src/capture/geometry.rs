@@ -97,6 +97,33 @@ mod tests {
     }
 
     #[test]
+    fn floors_a_fractional_near_edge() {
+        let d = DisplayInfo {
+            id: 1,
+            bounds: ScreenRect::new(0.0, 0.0, 100.0, 100.0),
+            scale: 1.0,
+        };
+        // 20 * 1.02 = 20.4 px: floor gives 20 (ceil would give 21).
+        let r = to_pixels(&d, 102, 102, ScreenRect::new(20.0, 20.0, 10.0, 10.0)).unwrap();
+        assert_eq!((r.x, r.y), (20, 20));
+        // 20.2 * 1.02 = 20.604 px: floor gives 20 (round or ceil would give 21).
+        let r = to_pixels(&d, 102, 102, ScreenRect::new(20.2, 20.2, 10.0, 10.0)).unwrap();
+        assert_eq!((r.x, r.y), (20, 20));
+    }
+
+    #[test]
+    fn uses_separate_x_and_y_scales_for_non_uniform_images() {
+        // 2560x1200 over 1280x800 points: sx = 2.0, sy = 1.5.
+        let d = DisplayInfo {
+            id: 1,
+            bounds: ScreenRect::new(100.0, 50.0, 1280.0, 800.0),
+            scale: 2.0,
+        };
+        let r = to_pixels(&d, 2560, 1200, ScreenRect::new(110.0, 70.0, 30.0, 40.0)).unwrap();
+        assert_eq!((r.x, r.y, r.width, r.height), (20, 30, 60, 60));
+    }
+
+    #[test]
     fn clips_to_the_display_and_rejects_empty_areas() {
         let d = DisplayInfo {
             id: 1,
@@ -144,6 +171,14 @@ mod tests {
         assert!(p.still_valid(std::slice::from_ref(&d)));
         assert!(!p.still_valid(&[DisplayInfo {
             scale: 1.0,
+            ..d.clone()
+        }]));
+        assert!(!p.still_valid(&[DisplayInfo {
+            bounds: ScreenRect::new(10.0, 0.0, 100.0, 100.0),
+            ..d.clone()
+        }]));
+        assert!(!p.still_valid(&[DisplayInfo {
+            bounds: ScreenRect::new(0.0, 0.0, 120.0, 100.0),
             ..d.clone()
         }]));
         assert!(!p.still_valid(&[DisplayInfo { id: 9, ..d }]));
