@@ -19,3 +19,8 @@ export function windowAt(windows: { bounds: Rect }[], p: Pt): number | null {
 export function toDesktop(local: Rect, displayOrigin: Pt): Rect {
   return { ...local, x: local.x + displayOrigin.x, y: local.y + displayOrigin.y };
 }
+
+/** A drag is a selection only when both sides reach MIN_DRAG; anything thinner is a click. */
+export function isSelection(r: Rect): boolean {
+  return r.width >= MIN_DRAG && r.height >= MIN_DRAG;
+}

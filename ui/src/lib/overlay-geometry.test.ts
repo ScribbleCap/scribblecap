@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dragRect, MIN_DRAG, toDesktop, windowAt } from './overlay-geometry';
+import { dragRect, isSelection, MIN_DRAG, toDesktop, windowAt } from './overlay-geometry';
 
 describe('overlay geometry', () => {
   it('normalizes drags in any direction', () => {
@@ -15,5 +15,13 @@ describe('overlay geometry', () => {
   });
   it('offsets local rectangles by the display origin, including negative ones', () => {
     expect(toDesktop({ x: 5, y: 6, width: 7, height: 8 }, { x: -1440, y: 0 })).toEqual({ x: -1435, y: 6, width: 7, height: 8 });
+  });
+  it('offsets by a fractional-scale display origin', () => {
+    expect(toDesktop({ x: 10, y: 10, width: 20, height: 20 }, { x: 1152, y: -86.4 })).toEqual({ x: 1162, y: -76.4, width: 20, height: 20 });
+  });
+  it('is a selection only when both sides reach MIN_DRAG', () => {
+    expect(isSelection({ x: 0, y: 0, width: 200, height: 1 })).toBe(false);
+    expect(isSelection({ x: 0, y: 0, width: 1, height: 200 })).toBe(false);
+    expect(isSelection({ x: 0, y: 0, width: 3, height: 3 })).toBe(true);
   });
 });

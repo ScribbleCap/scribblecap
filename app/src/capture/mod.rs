@@ -89,6 +89,11 @@ fn lock(app: &AppHandle) -> Result<std::sync::MutexGuard<'_, session::CaptureInn
         .map_err(|_| "The capture is unavailable.".to_string())
 }
 
+/// A selection that arrives after the capture ended (cancelled, timed out) must have no side effects.
+fn require_active(mode: Option<CaptureMode>) -> Result<CaptureMode, String> {
+    mode.ok_or_else(|| "This capture has ended.".to_string())
+}
+
 fn message(error: CaptureError) -> String {
     match error {
         #[cfg(target_os = "macos")]
@@ -474,6 +479,7 @@ pub async fn shell_overlay_select(app: AppHandle, display: u32, rect: Rect) -> R
         let rect = ScreenRect::from(rect);
         let cropped = {
             let mut state = lock(&app)?;
+            require_active(state.mode)?;
             let cropped = state
                 .frozen
                 .iter()
@@ -552,5 +558,22 @@ pub fn window_destroyed(window: &tauri::Window) {
     let active = lock(app).is_ok_and(|s| s.mode.is_some());
     if active {
         cancel(app);
+    }
+}
+
+#[cfg(test)]
+mod select_tests {
+    use super::*;
+
+    #[test]
+    fn a_select_with_no_active_capture_is_refused() {
+        assert_eq!(
+            require_active(None),
+            Err("This capture has ended.".to_string())
+        );
+        assert_eq!(
+            require_active(Some(CaptureMode::Region)),
+            Ok(CaptureMode::Region)
+        );
     }
 }

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { cancelCapture, overlayFrame, overlayInfo, overlaySelect, type OverlayInfo } from '../lib/capture';
-  import { dragRect, MIN_DRAG, toDesktop, windowAt, type Pt, type Rect } from '../lib/overlay-geometry';
+  import { dragRect, isSelection, toDesktop, windowAt, type Pt, type Rect } from '../lib/overlay-geometry';
 
   let { display }: { display: number } = $props();
 
@@ -10,6 +10,7 @@
   let canvas = $state<HTMLCanvasElement>();
   let pointer = $state<Pt | null>(null);
   let anchor = $state<Pt | null>(null);
+  const ENDED = 'This capture has ended.';
   let done = false;
 
   const origin = $derived(info ? { x: info.bounds.x, y: info.bounds.y } : { x: 0, y: 0 });
@@ -20,7 +21,7 @@
   const highlight = $derived<Rect | null>(
     windowMode
       ? hovered !== null && info ? { ...info.windows[hovered].bounds, x: info.windows[hovered].bounds.x - origin.x, y: info.windows[hovered].bounds.y - origin.y } : null
-      : dragging && (dragging.width >= MIN_DRAG || dragging.height >= MIN_DRAG) ? dragging : null,
+      : dragging && isSelection(dragging) ? dragging : null,
   );
   const sizeLabel = $derived(highlight ? `${Math.round(highlight.width * scale)} × ${Math.round(highlight.height * scale)}` : '');
 
@@ -34,7 +35,9 @@
     done = true;
     try {
       await overlaySelect(display, toDesktop(local, origin));
-    } catch {
+    } catch (e) {
+      // The capture already ended (cancelled elsewhere): Rust has closed the windows, nothing to undo.
+      if (String(e instanceof Error ? e.message : e).includes(ENDED)) return;
       done = false;
       await cancel();
     }
@@ -56,13 +59,14 @@
 
   const local = (e: MouseEvent): Pt => ({ x: e.clientX, y: e.clientY });
 
-  function down(e: MouseEvent) {
+  function down(e: PointerEvent) {
     if (e.button !== 0 || done) return;
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
     pointer = local(e);
     anchor = windowMode ? null : pointer;
   }
-  function move(e: MouseEvent) { pointer = local(e); }
-  function up(e: MouseEvent) {
+  function move(e: PointerEvent) { pointer = local(e); }
+  function up(e: PointerEvent) {
     if (e.button !== 0 || done) return;
     const end = local(e);
     pointer = end;
@@ -77,7 +81,7 @@
     anchor = null;
     if (!start) return;
     const r = dragRect(start, end);
-    if (r.width < MIN_DRAG && r.height < MIN_DRAG) return; // a click: stay open
+    if (!isSelection(r)) return; // a click: stay open
     void select(r);
   }
   function context(e: MouseEvent) { e.preventDefault(); void cancel(); }
@@ -88,9 +92,8 @@
 
 <canvas class="frame" bind:this={canvas} aria-hidden="true"></canvas>
 {#if info}
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div class="surface" data-testid="overlay" role="application" aria-label="Choose the area to capture. Press Escape to cancel."
-    onmousedown={down} onmousemove={move} onmouseup={up} oncontextmenu={context}>
+    onpointerdown={down} onpointermove={move} onpointerup={up} oncontextmenu={context}>
     <svg width="100%" height="100%" aria-hidden="true">
       <defs>
         <mask id="dim">

@@ -13,15 +13,18 @@ function packet(width: number, height: number) {
   return data;
 }
 const win = (x: number, y: number, width: number, height: number) => ({ id: 1, title: 't', appName: 'a', bounds: { x, y, width, height } });
-function setup(mode: string, opts: { fail?: string } = {}) {
+function setup(mode: string, opts: { fail?: string; failWith?: string } = {}) {
   vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-    if (cmd === opts.fail) throw new Error('boom');
+    if (cmd === opts.fail) throw new Error(opts.failWith ?? 'boom');
     if (cmd === 'shell_overlay_info') return { bounds: { x: 1920, y: 0, width: 200, height: 100 }, mode, windows: [win(1930, 10, 60, 40), win(1920, 0, 200, 100)] };
     if (cmd === 'shell_overlay_frame') return packet(400, 200);
     return undefined;
   });
   return render(Overlay, { display: 7 });
 }
+// jsdom has no PointerEvent: a MouseEvent with the pointer type name carries the same fields.
+const pointer = (type: string, el: Element, init: MouseEventInit) =>
+  fireEvent(el, Object.assign(new MouseEvent(type, { bubbles: true, ...init }), { pointerId: 4 }));
 const surface = () => screen.findByTestId('overlay');
 const calls = (name: string) => vi.mocked(invoke).mock.calls.filter(([c]) => c === name);
 beforeEach(() => {
@@ -36,24 +39,24 @@ it('asks for info and frame on load', async () => {
 });
 it('a click without a drag in region mode keeps the overlay open', async () => {
   setup('region'); const s = await surface();
-  await fireEvent.mouseDown(s, { clientX: 20, clientY: 20, button: 0 });
-  await fireEvent.mouseUp(s, { clientX: 21, clientY: 21, button: 0 });
+  await pointer('pointerdown', s, { clientX: 20, clientY: 20, button: 0 });
+  await pointer('pointerup', s, { clientX: 21, clientY: 21, button: 0 });
   expect(calls('shell_overlay_select')).toHaveLength(0);
   expect(calls('shell_capture_cancel')).toHaveLength(0);
 });
 it('a region drag selects desktop points on this display', async () => {
   setup('region'); const s = await surface();
-  await fireEvent.mouseDown(s, { clientX: 10, clientY: 10, button: 0 });
-  await fireEvent.mouseMove(s, { clientX: 60, clientY: 40 });
+  await pointer('pointerdown', s, { clientX: 10, clientY: 10, button: 0 });
+  await pointer('pointermove', s, { clientX: 60, clientY: 40 });
   expect(await screen.findByText('100 × 60')).toBeTruthy(); // image pixels at 2x
-  await fireEvent.mouseUp(s, { clientX: 110, clientY: 60, button: 0 });
+  await pointer('pointerup', s, { clientX: 110, clientY: 60, button: 0 });
   expect(invoke).toHaveBeenCalledWith('shell_overlay_select', { display: 7, rect: { x: 1930, y: 10, width: 100, height: 50 } });
 });
 it('window mode selects the hovered window bounds', async () => {
   setup('window'); const s = await surface();
-  await fireEvent.mouseMove(s, { clientX: 20, clientY: 20 }); // desktop 1940,20 -> window 0
-  await fireEvent.mouseDown(s, { clientX: 20, clientY: 20, button: 0 });
-  await fireEvent.mouseUp(s, { clientX: 20, clientY: 20, button: 0 });
+  await pointer('pointermove', s, { clientX: 20, clientY: 20 }); // desktop 1940,20 -> window 0
+  await pointer('pointerdown', s, { clientX: 20, clientY: 20, button: 0 });
+  await pointer('pointerup', s, { clientX: 20, clientY: 20, button: 0 });
   expect(invoke).toHaveBeenCalledWith('shell_overlay_select', { display: 7, rect: { x: 1930, y: 10, width: 60, height: 40 } });
 });
 it('Escape cancels', async () => {
@@ -72,7 +75,36 @@ it.each(['shell_overlay_info', 'shell_overlay_frame'])('cancels the capture when
 });
 it('cancels the capture when the selection fails', async () => {
   setup('region', { fail: 'shell_overlay_select' }); const s = await surface();
-  await fireEvent.mouseDown(s, { clientX: 10, clientY: 10, button: 0 });
-  await fireEvent.mouseUp(s, { clientX: 110, clientY: 60, button: 0 });
+  await pointer('pointerdown', s, { clientX: 10, clientY: 10, button: 0 });
+  await pointer('pointerup', s, { clientX: 110, clientY: 60, button: 0 });
   await vi.waitFor(() => expect(calls('shell_capture_cancel')).toHaveLength(1));
+});
+it.each([[200, 1], [1, 200]])('a %i x %i sliver is a click and keeps the overlay open', async (w, h) => {
+  setup('region'); const s = await surface();
+  await pointer('pointerdown', s, { clientX: 10, clientY: 10, button: 0 });
+  await pointer('pointerup', s, { clientX: 10 + w, clientY: 10 + h, button: 0 });
+  expect(calls('shell_overlay_select')).toHaveLength(0);
+  expect(calls('shell_capture_cancel')).toHaveLength(0);
+});
+it('a late select that finds the capture ended closes quietly without cancelling', async () => {
+  setup('region', { fail: 'shell_overlay_select', failWith: 'This capture has ended.' }); const s = await surface();
+  await pointer('pointerdown', s, { clientX: 10, clientY: 10, button: 0 });
+  await pointer('pointerup', s, { clientX: 110, clientY: 60, button: 0 });
+  await vi.waitFor(() => expect(calls('shell_overlay_select')).toHaveLength(1));
+  await fireEvent.keyDown(window, { key: 'Escape' });
+  expect(calls('shell_capture_cancel')).toHaveLength(0);
+});
+it('Escape after a completed select does not cancel', async () => {
+  setup('region'); const s = await surface();
+  await pointer('pointerdown', s, { clientX: 10, clientY: 10, button: 0 });
+  await pointer('pointerup', s, { clientX: 110, clientY: 60, button: 0 });
+  await vi.waitFor(() => expect(calls('shell_overlay_select')).toHaveLength(1));
+  await fireEvent.keyDown(window, { key: 'Escape' });
+  expect(calls('shell_capture_cancel')).toHaveLength(0);
+});
+it('uses pointer capture so a drag released outside still ends', async () => {
+  setup('region'); const s = await surface();
+  const capture = vi.fn(); (s as HTMLElement).setPointerCapture = capture;
+  await pointer('pointerdown', s, { clientX: 10, clientY: 10, button: 0 });
+  expect(capture).toHaveBeenCalledWith(4);
 });
