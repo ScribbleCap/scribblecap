@@ -28,6 +28,9 @@ enum Request {
     Remove { id: ElementId },
     /// Paths for every element, bottom-most first.
     Paint,
+    FilterPoints {
+        points: Vec<scribblecap_core::Point>,
+    },
     /// The document as saved JSON (`docs/file-format.md`).
     Document,
     /// End an undoable step: record the document if it changed since the last step.
@@ -79,6 +82,17 @@ impl Editor {
 
     fn apply(&mut self, request: Request) -> Result<Value, String> {
         match request {
+            Request::FilterPoints { points } => {
+                if points.is_empty()
+                    || points.len() > 8192
+                    || points.iter().any(|p| {
+                        !p.x.is_finite() || !p.y.is_finite() || p.x.abs() > 1e9 || p.y.abs() > 1e9
+                    })
+                {
+                    return Err("Invalid stroke points".into());
+                }
+                Ok(json!(scribblecap_core::geometry::filter_points(&points)))
+            }
             Request::Reset { canvas } => {
                 let document = Document::new(canvas);
                 document.validate().map_err(|e| e.to_string())?;
@@ -231,6 +245,27 @@ mod tests {
 
     fn arrow() -> Value {
         json!({ "kind": "arrow", "start": [10, 10], "end": [120, 80], "color": "#e5194a", "width": 8 })
+    }
+
+    #[test]
+    fn filter_points_is_bounded_and_uses_core_smoothing() {
+        let mut editor = Editor::default();
+        let points = ok(
+            &mut editor,
+            json!({"op":"filterPoints","points":[[0,0],[20,10],[40,0]]}),
+        );
+        assert!(points.as_array().unwrap().len() > 3);
+        assert_eq!(
+            points.as_array().unwrap().last().unwrap(),
+            &json!([40.0, 0.0])
+        );
+        for points in [json!([]), json!([[1e100, 0]]), json!(vec![[0, 0]; 8193])] {
+            assert!(
+                editor
+                    .handle(&json!({"op":"filterPoints","points":points}).to_string())
+                    .contains("error")
+            );
+        }
     }
 
     #[test]

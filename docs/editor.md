@@ -1,8 +1,11 @@
-# Editor (M2-2, M2-6)
+# Editor (M2-2, M2-3, M2-5, M2-6, M2-8, M2-10)
 
 The editor draws annotations on the open image. Shapes are edited through the core
 library running as WebAssembly ([decision 0011](decisions/0011-core-in-the-ui.md));
 the UI never computes painted geometry itself.
+
+Marker, highlighter, privacy, styles, stamps and keyboard-access details are in
+[editor-tools.md](editor-tools.md).
 
 ## Layout
 
@@ -36,8 +39,8 @@ The layout from the [design review](design-review.md):
   ⌘/Ctrl + scroll zooms.
 - Cursors follow the tool: crosshair for drawing, move over a shape with Select,
   grab/grabbing while panning.
-- Colour and size are fixed defaults until M2-5 (pink `#e5194a`, 6 px outlines and
-  12 px arrows).
+- Colour and size are chosen in Style. Defaults are pink `#e5194a`, 6 px outlines
+  and 12 px arrows; see [tool styles](editor-tools.md#colour-size-and-native-menus-m2-5).
 
 ## Undo and redo
 
@@ -49,7 +52,8 @@ The layout from the [design review](design-review.md):
 Undo and Redo buttons sit left of the tools. Each finished edit is one step: a drawn
 shape, a move, a resize, a delete, or a run of arrow-key nudges (one step when the
 key is released). A click that draws nothing adds no step. A new edit clears redo;
-opening or pasting an image starts a new history. Undo is ignored while a drag is in
+opening or pasting an image starts a new history. Destructive privacy commits also
+flatten annotations and reset history (decision 0015). Undo is ignored while a drag is in
 progress. After undo, the selection stays if its shape still exists.
 
 The history lives in the core (`scribblecap_core::History`) as whole-document
@@ -73,6 +77,7 @@ changes nothing.
 | `{"op":"add","shape":{…}}` | `{"id","paths"}`; the shape goes on top |
 | `{"op":"update","id","shape":{…}}` | `{"paths"}`; keeps id and stacking order |
 | `{"op":"remove","id"}` | `null` |
+| `{"op":"filterPoints","points":[[x,y],…]}` | filtered points for a completed stroke (maximum 8192 input points) |
 | `{"op":"paint"}` | `[{"id","paths"}]`, bottom-most first |
 | `{"op":"document"}` | the document JSON ([file-format.md](file-format.md)) |
 | `{"op":"commit"}` | `{"changed","canUndo","canRedo"}`; ends an undoable step if the document changed |

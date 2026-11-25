@@ -47,3 +47,10 @@ export async function dragImage(image: LoadedImage, document: string, gesture: n
 export async function cancelDrag(gesture: number): Promise<void> { await invoke('shell_cancel_drag', { gesture }); }
 
 export async function beginDrag(): Promise<number> { return invoke('shell_begin_drag'); }
+
+export async function privacyImage(image: LoadedImage, document: string, rect: [number, number, number, number], operation: 'pixelate' | 'redact'): Promise<LoadedImage> {
+  const response = await invoke<ArrayBuffer | number[]>('shell_privacy_image', pixelRequest(image, { name: image.name, document, rect, operation }));
+  const result = decodeImagePacket(response instanceof ArrayBuffer ? response : new Uint8Array(response).buffer);
+  if (!result) throw new Error('The privacy operation returned no image.');
+  return result;
+}

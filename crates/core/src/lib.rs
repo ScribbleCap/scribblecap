@@ -11,6 +11,7 @@ pub mod geom;
 pub mod geometry;
 pub mod history;
 pub mod path;
+pub mod privacy;
 pub mod render;
 
 pub use color::Color;

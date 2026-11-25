@@ -123,7 +123,8 @@ Marker or highlighter stroke.
 
 ### `stamp`
 
-Round badge from the app's stamp set.
+Round badge from the app's stamp set. New editor artwork uses `signal-check`,
+`signal-alert` and `signal-spark`, authored specifically for ScribbleCap.
 
 | Key | Type | Req. | Meaning |
 |---|---|---|---|

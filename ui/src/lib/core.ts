@@ -6,6 +6,9 @@ export type Pt = [number, number];
 export type Box = [number, number, number, number];
 
 export type Shape =
+  | { kind: 'stamp'; center: Pt; stamp: string; diameter: number; tailAngle?: number }
+  | { kind: 'step'; center: Pt; number: number; color: string; diameter: number }
+  | { kind: 'freehand'; tool: 'marker' | 'highlighter'; points: Pt[]; color: string; width: number }
   | { kind: 'arrow'; start: Pt; end: Pt; color: string; width: number; headAtStart?: boolean }
   | { kind: 'line'; start: Pt; end: Pt; color: string; width: number }
   | { kind: 'rectangle'; rect: Box; stroke: string; fill?: string; width: number; cornerRadius?: number }
@@ -20,6 +23,7 @@ export interface HistoryState { canUndo: boolean; canRedo: boolean }
 export interface Restored extends HistoryState { elements: { id: string; shape: Shape; paths: WirePath[] }[] | null }
 
 export interface Core {
+  filterPoints(points: Pt[]): Pt[];
   reset(width: number, height: number): void;
   add(shape: Shape): { id: string; paths: WirePath[] };
   update(id: string, shape: Shape): WirePath[];
@@ -62,14 +66,15 @@ export async function createCore(bytes: BufferSource): Promise<Core> {
   }
 
   return {
+    filterPoints: points => call({ op: 'filterPoints', points }) as Pt[],
     reset: (width, height) => { call({ op: 'reset', canvas: [width, height] }); },
     add: shape => call({ op: 'add', shape }) as { id: string; paths: WirePath[] },
     update: (id, shape) => (call({ op: 'update', id, shape }) as { paths: WirePath[] }).paths,
     remove: id => { call({ op: 'remove', id }); },
     document: () => call({ op: 'document' }) as string,
     commit: () => call({ op: 'commit' }) as HistoryState & { changed: boolean },
-    undo: () => call({ op: 'undo' }) as Restored,
-    redo: () => call({ op: 'redo' }) as Restored,
+    undo: () => restore(call({ op: 'undo' }) as Restored),
+    redo: () => restore(call({ op: 'redo' }) as Restored),
   };
 }
 
@@ -82,4 +87,16 @@ export function loadCore(): Promise<Core> {
     .then(response => response.arrayBuffer())
     .then(createCore);
   return shared;
+}
+
+// Rust emits Rect as an object; normalize restored rectangles to the UI's tuple.
+function restore(state: Restored): Restored {
+  if (state.elements) state.elements = state.elements.map(item => {
+    if ('rect' in item.shape && !Array.isArray(item.shape.rect)) {
+      const r = item.shape.rect as unknown as { x: number; y: number; width: number; height: number };
+      return { ...item, shape: { ...item.shape, rect: [r.x,r.y,r.width,r.height] } };
+    }
+    return item;
+  });
+  return state;
 }

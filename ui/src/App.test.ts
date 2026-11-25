@@ -6,7 +6,7 @@ import * as bridge from './lib/bridge';
 import type { LoadedImage } from './lib/image-packet';
 
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
-vi.mock('./lib/bridge', () => ({ droppedImage: vi.fn(), saveImage: vi.fn(), copyImage: vi.fn(), dragImage: vi.fn(), beginDrag: vi.fn(), cancelDrag: vi.fn(), desktop: true, openImage: vi.fn(), pasteImage: vi.fn(), browserImage: vi.fn() }));
+vi.mock('./lib/bridge', () => ({ droppedImage: vi.fn(), saveImage: vi.fn(), copyImage: vi.fn(), dragImage: vi.fn(), privacyImage: vi.fn(), beginDrag: vi.fn(), cancelDrag: vi.fn(), desktop: true, openImage: vi.fn(), pasteImage: vi.fn(), browserImage: vi.fn() }));
 // The real core WebAssembly module (built by `pnpm test`), loaded from disk; a fresh
 // instance per test keeps documents independent.
 vi.mock('./lib/core', async original => {
@@ -26,6 +26,7 @@ beforeEach(() => {
   vi.mocked(listen).mockReset().mockResolvedValue(vi.fn());
   vi.mocked(bridge.droppedImage).mockReset();
   vi.mocked(bridge.saveImage).mockReset();
+  vi.mocked(bridge.privacyImage).mockReset();
   vi.mocked(bridge.copyImage).mockReset().mockResolvedValue();
   vi.mocked(bridge.dragImage).mockReset().mockResolvedValue();
   vi.mocked(bridge.beginDrag).mockReset().mockResolvedValue(27);
@@ -90,9 +91,9 @@ describe('image shell', () => {
     await fireEvent.keyDown(window, { key: 'o', ctrlKey: true });
     await fireEvent.keyDown(window, { key: 'o', ctrlKey: true });
     expect(bridge.openImage).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('status').textContent).toContain('Loading');
+    expect(screen.getByText('Loading image…')).toBeTruthy();
     resolve(null);
-    await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
+    await waitFor(() => expect(screen.queryByText('Loading image…')).toBeNull());
   });
   it('pans by dragging, releases pointer capture and handles wheel zoom', async () => {
     vi.mocked(bridge.openImage).mockResolvedValue(image());
@@ -154,7 +155,7 @@ describe('annotation tools', () => {
     await fireEvent.pointerMove(target, { pointerId: 1, isPrimary: true, clientX: to[0], clientY: to[1] });
     await fireEvent.pointerUp(target, { pointerId: 1 });
   };
-  const pressed = () => screen.getAllByRole('button', { pressed: true }).map(b => b.getAttribute('aria-label'));
+  const pressed = () => screen.getAllByRole('button', { pressed: true }).filter(b => b.closest('[role=toolbar]')).map(b => b.getAttribute('aria-label'));
 
   it('starts with the arrow tool and switches tools by key and button', async () => {
     await openBig();
@@ -178,6 +179,86 @@ describe('annotation tools', () => {
     await waitFor(() => expect(fill).toHaveBeenCalled());
     const painted = fill.mock.calls.at(-1)![0] as { d: string };
     expect(painted.d).toMatch(/^M /);
+  });
+  it('draws multi-point marker and translucent highlighter strokes as one undo step', async () => {
+    const viewport = await openBig();
+    await fireEvent.keyDown(window, { key: 'h' });
+    await fireEvent.pointerDown(viewport, { pointerId: 1, button: 0, isPrimary: true, clientX: 220, clientY: 220 });
+    await fireEvent.pointerMove(viewport, { pointerId: 1, isPrimary: true, clientX: 260, clientY: 240 });
+    await fireEvent.pointerMove(viewport, { pointerId: 1, isPrimary: true, clientX: 300, clientY: 220 });
+    await fireEvent.pointerUp(viewport, { pointerId: 1 });
+    await fireEvent.click(screen.getByRole('button', { name: 'Copy image' }));
+    const doc = JSON.parse(vi.mocked(bridge.copyImage).mock.calls.at(-1)![1]);
+    expect(doc.elements[0]).toMatchObject({ kind: 'freehand', tool: 'highlighter', color: '#E5194A66', width: 24 });
+    expect(doc.elements[0].points.length).toBeGreaterThan(2);
+    await fireEvent.keyDown(window, { key: 'z', ctrlKey: true });
+    expect(screen.getByText('Annotations (0)')).toBeTruthy();
+  });
+  it('applies selected styles and supports keyboard-only creation, selection and resize', async () => {
+    const viewport = await openBig();
+    await fireEvent.keyDown(window, { key: 'r' });
+    await fireEvent.click(screen.getByRole('button', { name: 'Add annotation' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Colour #007aff' }));
+    await fireEvent.change(screen.getByLabelText('Stroke size'), { target: { value: '10' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Resize annotation' }));
+    await fireEvent.click(screen.getByRole('button', { name: '1. rectangle' }));
+    expect(document.activeElement).toBe(viewport);
+    await fireEvent.keyDown(viewport, { key: 'ArrowRight' });
+    await fireEvent.keyUp(viewport, { key: 'ArrowRight' });
+    await fireEvent.click(screen.getByRole('button', { name: 'Copy image' }));
+    const doc = JSON.parse(vi.mocked(bridge.copyImage).mock.calls.at(-1)![1]);
+    expect(doc.elements[0]).toMatchObject({ stroke: '#007AFFFF', width: 10, rect: { x: 1, y: 0, width: 100, height: 60 } });
+    await fireEvent.keyDown(viewport, { key: 'Delete' });
+    expect(screen.getByText('Annotations (0)')).toBeTruthy();
+  });
+  it('places original stamps and renumbers steps after deletion and undo', async () => {
+    const viewport = await openBig();
+    await fireEvent.keyDown(window, { key: 's' });
+    await fireEvent.click(screen.getByRole('button', { name: 'Add annotation' }));
+    await fireEvent.keyDown(window, { key: 'n' });
+    await fireEvent.click(screen.getByRole('button', { name: 'Add annotation' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Add annotation' }));
+    await fireEvent.click(screen.getByRole('button', { name: '2. step 1' }));
+    await fireEvent.keyDown(viewport, { key: 'Delete' });
+    expect(screen.getByRole('button', { name: '2. step 1' })).toBeTruthy();
+    await fireEvent.keyDown(window, { key: 'z', ctrlKey: true });
+    expect(screen.getByRole('button', { name: '3. step 2' })).toBeTruthy();
+    await fireEvent.click(screen.getByRole('button', { name: 'Copy image' }));
+    const doc = JSON.parse(vi.mocked(bridge.copyImage).mock.calls.at(-1)![1]);
+    expect(doc.elements[0].stamp).toBe('signal-check');
+  });
+  it('commits a privacy region through Rust and clears annotation undo history', async () => {
+    const viewport = await openBig();
+    await drag(viewport, [220,220],[300,280]);
+    vi.mocked(bridge.privacyImage).mockResolvedValue(image('clean.png'));
+    await fireEvent.click(screen.getByRole('button', { name: 'Apply privacy edit permanently' }));
+    await waitFor(() => expect(bridge.privacyImage).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByText('clean.png')).toBeTruthy());
+    expect((screen.getByRole('button', { name: 'Undo' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText('Annotations (0)')).toBeTruthy();
+  });
+  it('navigates tools with the keyboard and preserves native text-field keys', async () => {
+    await openBig();
+    const arrow = screen.getByRole('button', { name: 'Arrow' });
+    arrow.focus();
+    await fireEvent.keyDown(arrow, { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Line' }));
+    const input = screen.getByLabelText('Start X');
+    await fireEvent.keyDown(input, { key: 'h' });
+    expect(pressed()).toEqual(['Line']);
+    const details = input.closest('details')!; details.open = true;
+    await fireEvent.keyDown(input, { key: 'Escape' });
+    expect(details.open).toBe(false);
+    expect(document.activeElement).toBe(details.querySelector('summary'));
+  });
+  it('discards cancelled strokes without an undo step', async () => {
+    const viewport = await openBig();
+    await fireEvent.keyDown(window, { key: 'm' });
+    await fireEvent.pointerDown(viewport, { pointerId: 1, button: 0, isPrimary: true, clientX: 220, clientY: 220 });
+    await fireEvent.pointerMove(viewport, { pointerId: 1, isPrimary: true, clientX: 260, clientY: 240 });
+    await fireEvent.pointerCancel(viewport, { pointerId: 1 });
+    expect(screen.getByText('Annotations (0)')).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Undo' }) as HTMLButtonElement).disabled).toBe(true);
   });
   it('selects, moves and deletes a shape', async () => {
     const viewport = await openBig();
@@ -298,12 +379,12 @@ describe('native file drops', () => {
     vi.mocked(bridge.droppedImage).mockResolvedValue(image('dropped.png'));
     const mounted = render(App);
     await waitFor(() => expect(listen).toHaveBeenCalledWith('shell-file-drop', expect.any(Function)));
-    const handler = vi.mocked(listen).mock.calls[0][1];
+    const handler = vi.mocked(listen).mock.calls.find(call => call[0] === 'shell-file-drop')![1];
     handler({ event: 'shell-file-drop', id: 0, payload: null });
     await waitFor(() => expect(screen.getByLabelText('dropped.png, 2 by 1 pixels')).toBeTruthy());
     expect(bridge.droppedImage).toHaveBeenCalledWith();
     mounted.unmount();
-    expect(stop).toHaveBeenCalledOnce();
+    expect(stop).toHaveBeenCalledTimes(2);
   });
   it('keeps the current image when a native drop is rejected', async () => {
     vi.mocked(bridge.openImage).mockResolvedValue(image());
@@ -311,7 +392,7 @@ describe('native file drops', () => {
     render(App);
     await fireEvent.click(screen.getByRole('button', { name: 'Open image' }));
     await waitFor(() => expect(screen.getByLabelText('test.png, 2 by 1 pixels')).toBeTruthy());
-    vi.mocked(listen).mock.calls[0][1]({ event: 'shell-file-drop', id: 0, payload: null });
+    vi.mocked(listen).mock.calls.find(call => call[0] === 'shell-file-drop')![1]({ event: 'shell-file-drop', id: 0, payload: null });
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Drop one image at a time.'));
     expect(screen.getByLabelText('test.png, 2 by 1 pixels')).toBeTruthy();
   });

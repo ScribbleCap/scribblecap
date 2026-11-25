@@ -4,10 +4,12 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod canvas;
+mod menus;
 mod output;
 #[cfg(target_os = "linux")]
 mod output_linux;
 mod pixel_request;
+mod privacy;
 mod shell;
 
 use tauri::{Emitter, Manager};
@@ -17,6 +19,10 @@ fn main() {
         .manage(shell::DroppedImage::default())
         .manage(shell::ImageSession::default())
         .manage(output::ShareState::default())
+        .setup(|app| {
+            menus::install(app)?;
+            Ok(())
+        })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event
                 && let Ok(mut pending) = window.state::<shell::DroppedImage>().0.lock()
@@ -33,6 +39,7 @@ fn main() {
             shell::shell_drop_image,
             output::shell_copy_image,
             canvas::shell_transform_image,
+            privacy::shell_privacy_image,
             output::shell_save_image,
             output::shell_drag_image,
             output::shell_begin_drag,

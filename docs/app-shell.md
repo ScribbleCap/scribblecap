@@ -97,7 +97,7 @@ The frontend validates the packet before replacing its state. Tauri's raw respon
 can arrive as ArrayBuffer or a byte array on WebKit; both are supported. This is an
 in-process transport, not a saved file format.
 
-Copy, save, drag and canvas transforms send pixels through Tauri's raw binary
+Copy, save, drag, privacy edits and canvas transforms send pixels through Tauri's raw binary
 request body. The `SCOP` version 1 envelope contains a 12-byte header (magic,
 u32 little-endian version and metadata byte length), UTF-8 JSON metadata, then
 straight RGBA8 bytes. Dimensions and command-specific options live in metadata;
@@ -152,3 +152,10 @@ independent of zoom. Transforms fit the new raster and never write files by them
 Transforms are disabled while the editor contains new annotations or the imported
 image has editable metadata, so this milestone cannot silently discard annotations.
 Document-wide transforms and undo history remain pending; see [canvas-transforms.md](canvas-transforms.md).
+
+## Privacy session replacement
+
+`shell_privacy_image` flattens current annotations, applies core pixel replacement,
+and clears imported resources and save destination only after a complete response
+is allocated. The UI resets its document/history using the sanitized pixels. See
+[editor-tools.md](editor-tools.md) and decision 0015 for behavior and limitations.
