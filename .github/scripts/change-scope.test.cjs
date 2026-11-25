@@ -7,7 +7,8 @@ const classify = files => detect(push, assert.fail, () => files.join('\0') + '\0
 
 test('documentation paths skip checks; all other files run them', () => {
   assert.equal(classify(['README.md', 'docs/figure.png', 'docs/nested/design.md', 'LICENSE-MIT']), false);
-  for (const path of ['crates/core/src/lib.rs', '.github/workflows/ci.yml', 'ui/package.json', 'src/LICENSE', 'readme.MD']) {
+  assert.equal(classify(['.github/dependabot.yml', '.github/CODEOWNERS', '.gitignore', '.github/ISSUE_TEMPLATE/bug.yml']), false);
+  for (const path of ['crates/core/src/lib.rs', '.github/workflows/ci.yml', '.github/scripts/change-scope.cjs', 'ui/package.json', 'src/LICENSE', 'readme.MD', 'ui/.gitignore']) {
     assert.equal(classify(['README.md', path]), true, path);
   }
 });
