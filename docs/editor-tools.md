@@ -52,9 +52,11 @@ Text inputs retain native text editing rather than triggering canvas operations.
 
 ## Keyboard and screen-reader access (M5-3)
 
-The tool toolbar uses one Tab stop and Left/Right/Home/End navigation. The window
-is at least 800 × 560 px, so the icon row always shows; a labelled native Tool select
-replaces it only below 720 px (for example with large text zoom). Controls have visible
+The tool toolbar uses one Tab stop and Left/Right/Home/End navigation. Pixelate and
+Redact are tools in the same row. The window is at least 800 × 560 px; below 960 px
+the shape tools fold into one Shapes menu, and below 720 px (for example with large
+text zoom) a labelled native Tool select replaces the icon row. Canvas, Annotations
+and the numeric Privacy controls are under the ⋯ More menu. Controls have visible
 focus outlines, accessible names and pressed states. Small windows reflow controls
 instead of clipping them; popovers scroll within the viewport.
 
