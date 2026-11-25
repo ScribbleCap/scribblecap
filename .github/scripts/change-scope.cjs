@@ -1,7 +1,11 @@
 const { execFileSync } = require('node:child_process');
 
+// Repository settings that no build, test or workflow reads.
+const SETTINGS = ['.github/dependabot.yml', '.github/CODEOWNERS', '.gitignore'];
+
 function isDocumentation(path) {
-  return path.endsWith('.md') || path.startsWith('docs/') || /^LICENSE[^/]*$/.test(path);
+  return path.endsWith('.md') || path.startsWith('docs/') || /^LICENSE[^/]*$/.test(path)
+    || SETTINGS.includes(path) || path.startsWith('.github/ISSUE_TEMPLATE/');
 }
 
 function detect(context, warn, git = execFileSync) {
