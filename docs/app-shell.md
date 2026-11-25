@@ -161,3 +161,53 @@ It returns a u32 little-endian session revision followed by a SCIM image packet.
 Only the active session's resources enter output; old snapshots are not serialized.
 Both commands allocate their response before changing the current native session.
 See [editor-tools.md](editor-tools.md) and decision 0017 for limits and behavior.
+
+## Capture (M4-5)
+
+The Capture button (top left of the title bar) captures a region. Its menu offers
+**Window**, **Full screen**, **Previous region** and **Timer** (3, 5 or 10 s), and
+**Settings**. Design: `docs/superpowers/specs/2026-11-24-m4-5-capture-design.md`;
+decision: [0016](decisions/0016-in-app-capture.md).
+
+- **Region / Window (macOS, Windows, X11).** The editor window hides, every display is
+  captured, and one full-screen overlay per display shows the frozen picture. Drag to
+  select a region, or hover and click a window; the result is cropped from the frozen
+  pixels. Escape or a right click cancels and restores the editor. If an overlay page
+  does not report ready within 10 s the capture is cancelled.
+- **Full screen** captures the display under the pointer without an overlay.
+  **Previous region** re-captures the last region while that display keeps the same
+  ID, bounds and scale; otherwise it opens the Region overlay. It is disabled until a
+  region has been captured in this session.
+- **Timer.** The editor hides and a small countdown badge shows in a corner of the
+  display under the pointer. The freeze happens when it ends, so menus opened
+  meanwhile are captured. Escape or a click on the badge cancels.
+- **Wayland.** Region and Full screen send one portal request; the system dialog
+  chooses what to capture, and the user crops in the editor. Window and Previous
+  region are disabled. Timer waits, then sends the request.
+- **Capture folder and auto-save.** Captures use one remembered folder, asked for the
+  first time it is needed and again if it disappears or is not writable. Settings
+  (`settings.json` in the app config folder) hold the folder and *Auto-save captures*
+  (off by default). Off: the first Save writes `<folder>/Screenshot <date time>.png`
+  (editable PNG) without a dialog; later Saves overwrite it; Save As starts in the
+  folder. On: each capture is written on arrival. Existing files are never overwritten
+  by a new capture (milliseconds are added to the name).
+- **Unsaved work.** Capture, Open, Paste and Drop first ask **Save… / Discard / Cancel**
+  when the image has unsaved changes. The prompt is modal. An untouched capture is
+  replaced without asking, even with auto-save off.
+- **Errors.** A permission error (macOS Screen Recording, or a cancelled portal)
+  shows text naming System Settings > Privacy & Security > Screen & System Audio
+  Recording; there is no link yet. A folder that does not support new-file creation
+  by hard link (some exFAT or network shares) shows the save error.
+
+### Manual desktop checklist (not yet run)
+
+- [ ] macOS: permission prompt on first capture; Retina and non-Retina displays side
+  by side, selection lands on the right pixels.
+- [ ] Windows: mixed-DPI displays; overlay covers each display exactly.
+- [ ] X11 without a compositor: overlays appear and cover the displays.
+- [ ] Wayland: portal dialog, approval and cancellation; crop in the editor.
+- [ ] Timer with a menu opened during the countdown: menu is in the picture, badge is not.
+- [ ] Unplug a monitor, then Previous region: falls back to the Region overlay.
+- [ ] Read-only capture folder: asks for another folder; no loop.
+- [ ] Auto-save on and off: files and names as above, no overwrites; Alt+F4 on an
+  overlay restores the editor.
