@@ -36,6 +36,9 @@
   let fileInput: HTMLInputElement;
   let busy = $state(false);
   let error = $state('');
+  let outputStatus = $state('');
+  let thumbnail = $state('');
+  let shareGesture = 0;
   let alive = true;
   let ratio = $state(1);
   // While fitted, resizing the window re-fits the image (like native image viewers);
@@ -113,6 +116,29 @@
       else error = 'There is no image on the clipboard. Copy an image and try again.';
     }
   }
+  async function output(action: (current: LoadedImage, document: string) => Promise<void>) {
+    if (!image || !core || busy || gesture) return;
+    busy = true; error = ''; outputStatus = '';
+    try {
+      if (!bridge.desktop) throw new Error('Image sharing and saving are available in the desktop app.');
+      await action(image, core.document());
+    } catch (cause) { if (alive) report(cause); }
+    finally { if (alive) busy = false; }
+  }
+  function copyImage() { void output(async (image, document) => { await bridge.copyImage(image, document); if (alive) outputStatus = 'Image copied'; }); }
+  function saveImage(saveAs = false, flat = false) {
+    void output(async (current, document) => {
+      const name = await bridge.saveImage(current, document, saveAs, flat);
+      if (!name || !alive) return;
+      outputStatus = flat ? `Exported ${name}` : `Saved ${name}`;
+      if (!flat) { image = { ...current, name }; window.document.title = `${name} — ScribbleCap`; }
+    });
+  }
+  function dragImage() {
+    const generation = ++shareGesture;
+    void output(async (image, document) => { await bridge.dragImage(image, document, generation); });
+  }
+  function cancelShare() { if (shareGesture && bridge.desktop) void bridge.cancelDrag(shareGesture).catch(() => {}); }
   function fit() { if (image) { view = fitViewport(image, area); fitted = true; } }
   function actual() { if (image) { view = actualSize(image, area); fitted = false; } }
   function zoom(factor: number) { if (image) { view = zoomAt(view, view.scale * factor, { x: area.width / 2, y: area.height / 2 }); fitted = false; } }
@@ -124,7 +150,7 @@
   function report(cause: unknown) { error = cause instanceof Error ? cause.message : String(cause); }
   /** Send a changed shape to the core and repaint with the paths it returns. */
   function apply(id: string, shape: Shape): boolean {
-    if (!core) return false;
+    if (busy || !core) return false;
     try {
       const paths = core.update(id, shape);
       items = items.map(item => item.id === id ? { id, shape, paths } : item);
@@ -132,7 +158,7 @@
     } catch (cause) { report(cause); return false; }
   }
   function removeSelected() {
-    if (!core || !selected) return;
+    if (busy || !core || !selected) return;
     try { core.remove(selected); items = items.filter(item => item.id !== selected); selected = null; }
     catch (cause) { report(cause); }
   }
@@ -176,11 +202,13 @@
     if (editableTarget(event.target) || event.altKey) return;
     const key = event.key.toLowerCase();
     if (event.metaKey || event.ctrlKey) {
-      if (['o', 'v', 'z', 'y', '+', '=', '-', '0', '1'].includes(key)) event.preventDefault();
+      if (['o', 'v', 'c', 's', 'z', 'y', '+', '=', '-', '0', '1'].includes(key)) event.preventDefault();
       if (key === 'z') travel(event.shiftKey ? 'redo' : 'undo');
       if (key === 'y' && !mac) travel('redo');
       if (key === 'o' && !event.repeat) openImage();
       if (key === 'v' && !event.repeat) pasteImage();
+      if (key === 'c' && !event.repeat) copyImage();
+      if (key === 's' && !event.repeat) saveImage(event.shiftKey);
       if (key === '+' || key === '=') zoom(1.25);
       if (key === '-') zoom(0.8);
       if (key === '0') fit();
@@ -215,7 +243,7 @@
     fitted = false;
   }
   function down(event: PointerEvent) {
-    if (!image || !core || !event.isPrimary || (event.button !== 0 && event.button !== 1)) return;
+    if (busy || !image || !core || !event.isPrimary || (event.button !== 0 && event.button !== 1)) return;
     stage.focus(); event.preventDefault(); stage.setPointerCapture(event.pointerId);
     const id = event.pointerId;
     if (event.button === 1 || spaceHeld) { gesture = { kind: 'pan', id, x: event.clientX, y: event.clientY }; return; }
@@ -305,6 +333,23 @@
   }
 
   $effect(() => {
+    const background = source, annotations = items;
+    if (!background) { thumbnail = ''; return; }
+    const timer = window.setTimeout(() => {
+      const preview = window.document.createElement('canvas');
+      const scale = Math.min(80 / background.width, 56 / background.height);
+      preview.width = Math.max(1, Math.round(background.width * scale));
+      preview.height = Math.max(1, Math.round(background.height * scale));
+      const context = preview.getContext('2d');
+      if (!context) return;
+      context.scale(scale, scale); context.drawImage(background, 0, 0);
+      for (const item of annotations) for (const path of item.paths) paint(context, path);
+      thumbnail = preview.toDataURL('image/png');
+    }, 120);
+    return () => window.clearTimeout(timer);
+  });
+
+  $effect(() => {
     if (!canvas || !source) return;
     const width = Math.max(1, Math.round(area.width * ratio)), height = Math.max(1, Math.round(area.height * ratio));
     if (canvas.width !== width) canvas.width = width;
@@ -357,7 +402,7 @@
   });
 </script>
 
-<svelte:window ondrop={onDrop} ondragover={(event) => event.preventDefault()} onkeydown={onKey} onkeyup={onKeyUp} onpaste={onPaste} onblur={() => spaceHeld = false} />
+<svelte:window ondrop={onDrop} ondragover={(event) => event.preventDefault()} onkeydown={onKey} onkeyup={onKeyUp} onpaste={onPaste} onblur={() => spaceHeld = false} onpointerup={cancelShare} onpointercancel={cancelShare} />
 <main aria-busy={busy} class:mac={mac && bridge.desktop}>
   <header class="titlebar" data-tauri-drag-region>
     <!-- Capture (M4-5) takes this place; until then Open and Paste sit here. -->
@@ -375,11 +420,17 @@
     </div>
     <div class="tools" role="toolbar" aria-label="Tools">
       {#each TOOLS as t (t.tool)}
-        <button class="tool" aria-label={t.label} aria-pressed={tool === t.tool} title={`${t.label} (${t.key})`} disabled={!image} onclick={() => chooseTool(t.tool)}>
+        <button class="tool" aria-label={t.label} aria-pressed={tool === t.tool} title={`${t.label} (${t.key})`} disabled={!image || busy} onclick={() => chooseTool(t.tool)}>
           <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d={t.icon} fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
         </button>
       {/each}
     </div>
+    <details class="share-actions"><summary>Share</summary><div>
+      <button onclick={copyImage} disabled={!image || busy} title={`Copy image (${mod}C)`}>Copy image</button>
+      <button onclick={() => saveImage()} disabled={!image || busy} title={`Save (${mod}S)`}>Save image</button>
+      <button onclick={() => saveImage(true)} disabled={!image || busy} title={`Save as (${mod}Shift+S)`}>Save as…</button>
+      <button onclick={() => saveImage(true, true)} disabled={!image || busy}>Export flat…</button>
+    </div></details>
   </header>
   {#if error}<div class="error" role="alert"><span>{error}</span><button onclick={() => error = ''} aria-label="Dismiss error">×</button></div>{/if}
   <div class="workspace">
@@ -396,6 +447,8 @@
         </div>
       {/if}
     </div>
+    {#if outputStatus}<div class="output-status" role="status">{outputStatus}</div>{/if}
+    {#if image && bridge.desktop}<button class="drag-out" disabled={busy} style:left={`${Math.max(8, Math.min(area.width - 120, view.x + image.width * view.scale - 112))}px`} style:top={`${Math.max(8, Math.min(area.height - 48, view.y + image.height * view.scale))}px`} onpointerdown={(event) => { if (event.button === 0) { event.preventDefault(); dragImage(); } }} onclick={(event) => { if (event.detail === 0) copyImage(); }} aria-label="Drag image out; Enter copies the image" title="Drag this image into another app; Enter copies"><img src={thumbnail} alt="" draggable="false" /><span>Drag out</span></button>{/if}
     {#if busy}<div class="loading" role="status">Loading image…</div>{/if}
   </div>
   <footer class="statusbar">
@@ -411,3 +464,12 @@
   </footer>
   <input class="file-input" bind:this={fileInput} type="file" accept="image/png,image/jpeg,image/webp,image/tiff,image/bmp,image/gif" aria-label="Choose an image" onchange={() => { const file = fileInput.files?.[0]; if (file) void load(() => bridge.browserImage(file, file.name)); fileInput.value = ''; }} />
 </main>
+
+<style>
+  .share-actions { position: relative; margin-left: auto; }
+  .share-actions summary { cursor: pointer; padding: .5rem; }
+  .share-actions > div { position: absolute; top: 100%; right: 0; z-index: 5; display: grid; gap: .4rem; min-width: 9rem; padding: .5rem; background: var(--surface); border: 1px solid var(--line); border-radius: .5rem; }
+  .output-status { position: absolute; z-index: 4; bottom: 1rem; left: 1rem; background: var(--surface); padding: .4rem .7rem; border-radius: .4rem; }
+  .drag-out { position: absolute; z-index: 3; display: flex; align-items: center; gap: .4rem; padding: .2rem .5rem; cursor: grab; box-shadow: 0 2px 10px #0003; }
+  .drag-out img { width: 40px; height: 28px; object-fit: contain; }
+</style>

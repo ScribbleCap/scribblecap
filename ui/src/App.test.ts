@@ -6,7 +6,7 @@ import * as bridge from './lib/bridge';
 import type { LoadedImage } from './lib/image-packet';
 
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
-vi.mock('./lib/bridge', () => ({ droppedImage: vi.fn(), desktop: true, openImage: vi.fn(), pasteImage: vi.fn(), browserImage: vi.fn() }));
+vi.mock('./lib/bridge', () => ({ droppedImage: vi.fn(), saveImage: vi.fn(), copyImage: vi.fn(), dragImage: vi.fn(), cancelDrag: vi.fn(), desktop: true, openImage: vi.fn(), pasteImage: vi.fn(), browserImage: vi.fn() }));
 // The real core WebAssembly module (built by `pnpm test`), loaded from disk; a fresh
 // instance per test keeps documents independent.
 vi.mock('./lib/core', async original => {
@@ -25,10 +25,15 @@ beforeEach(() => {
   vi.mocked(bridge.openImage).mockReset(); vi.mocked(bridge.pasteImage).mockReset(); transform.mockReset();
   vi.mocked(listen).mockReset().mockResolvedValue(vi.fn());
   vi.mocked(bridge.droppedImage).mockReset();
+  vi.mocked(bridge.saveImage).mockReset();
+  vi.mocked(bridge.copyImage).mockReset().mockResolvedValue();
+  vi.mocked(bridge.dragImage).mockReset().mockResolvedValue();
+  vi.mocked(bridge.cancelDrag).mockReset().mockResolvedValue();
+  vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/png;base64,AA==');
   resize = undefined;
   vi.stubGlobal('ResizeObserver', class { constructor(callback: ResizeObserverCallback) { resize = callback; } observe() {} disconnect() {} });
   vi.stubGlobal('ImageData', class { constructor(public data: Uint8ClampedArray, public width: number, public height: number) {} });
-  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ putImageData: vi.fn(), setTransform: transform, clearRect: vi.fn(), fillRect: vi.fn(), drawImage: vi.fn(), createPattern: vi.fn(), strokeRect: vi.fn(), save: vi.fn(), restore: vi.fn(), beginPath: vi.fn(), rect: vi.fn(), clip: vi.fn(), fill: vi.fn(), stroke: vi.fn() } as unknown as CanvasRenderingContext2D);
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ scale: vi.fn(), putImageData: vi.fn(), setTransform: transform, clearRect: vi.fn(), fillRect: vi.fn(), drawImage: vi.fn(), createPattern: vi.fn(), strokeRect: vi.fn(), save: vi.fn(), restore: vi.fn(), beginPath: vi.fn(), rect: vi.fn(), clip: vi.fn(), fill: vi.fn(), stroke: vi.fn() } as unknown as CanvasRenderingContext2D);
 });
 
 describe('image shell', () => {
@@ -164,7 +169,7 @@ describe('annotation tools', () => {
     const viewport = await openBig();
     const fill = vi.fn();
     vi.stubGlobal('Path2D', class { constructor(public d: string) {} });
-    (HTMLCanvasElement.prototype.getContext as unknown as { mockReturnValue(v: unknown): void }).mockReturnValue({ putImageData: vi.fn(), setTransform: transform, clearRect: vi.fn(), fillRect: vi.fn(), drawImage: vi.fn(), createPattern: vi.fn(), strokeRect: vi.fn(), save: vi.fn(), restore: vi.fn(), beginPath: vi.fn(), rect: vi.fn(), clip: vi.fn(), fill, stroke: vi.fn() });
+    (HTMLCanvasElement.prototype.getContext as unknown as { mockReturnValue(v: unknown): void }).mockReturnValue({ scale: vi.fn(), putImageData: vi.fn(), setTransform: transform, clearRect: vi.fn(), fillRect: vi.fn(), drawImage: vi.fn(), createPattern: vi.fn(), strokeRect: vi.fn(), save: vi.fn(), restore: vi.fn(), beginPath: vi.fn(), rect: vi.fn(), clip: vi.fn(), fill, stroke: vi.fn() });
     await fireEvent.pointerDown(viewport, { pointerId: 1, button: 0, isPrimary: true, clientX: 250, clientY: 250 });
     await fireEvent.pointerUp(viewport, { pointerId: 1 });
     expect(fill).not.toHaveBeenCalled();
@@ -307,6 +312,50 @@ describe('native file drops', () => {
     await waitFor(() => expect(screen.getByLabelText('test.png, 2 by 1 pixels')).toBeTruthy());
     vi.mocked(listen).mock.calls[0][1]({ event: 'shell-file-drop', id: 0, payload: null });
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Drop one image at a time.'));
+    expect(screen.getByLabelText('test.png, 2 by 1 pixels')).toBeTruthy();
+  });
+});
+
+describe('file output with the real editing core', () => {
+  async function openAndDraw() {
+    vi.mocked(bridge.openImage).mockResolvedValue(image());
+    render(App);
+    await fireEvent.click(screen.getByRole('button', { name: 'Open image' }));
+    await waitFor(() => expect(screen.getByLabelText('test.png, 2 by 1 pixels')).toBeTruthy());
+    const viewport = screen.getByRole('region', { name: 'Image viewport' });
+    Object.assign(viewport, { setPointerCapture: vi.fn(), hasPointerCapture: () => true, releasePointerCapture: vi.fn() });
+    await fireEvent.pointerDown(viewport, { pointerId: 10, button: 0, isPrimary: true, clientX: 400, clientY: 300 });
+    await fireEvent.pointerMove(viewport, { pointerId: 10, isPrimary: true, clientX: 450, clientY: 320 });
+    await fireEvent.pointerUp(viewport, { pointerId: 10 });
+  }
+  it('sends current editable annotations for copy, save, save-as and native drag', async () => {
+    vi.mocked(bridge.saveImage).mockResolvedValue('saved.png');
+    await openAndDraw();
+    await fireEvent.keyDown(window, { key: 'c', ctrlKey: true });
+    await waitFor(() => expect(bridge.copyImage).toHaveBeenCalledOnce());
+    const document = vi.mocked(bridge.copyImage).mock.calls[0][1];
+    expect(JSON.parse(document).elements).toHaveLength(1);
+    expect(JSON.parse(document).elements[0].kind).toBe('arrow');
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Image copied'));
+    await fireEvent.keyDown(window, { key: 's', ctrlKey: true, shiftKey: true });
+    await waitFor(() => expect(screen.getByLabelText('saved.png, 2 by 1 pixels')).toBeTruthy());
+    expect(bridge.saveImage).toHaveBeenCalledWith(image(), document, true, false);
+    const handle = screen.getByRole('button', { name: 'Drag image out; Enter copies the image' });
+    await fireEvent.pointerDown(handle, { button: 0 });
+    await waitFor(() => expect(bridge.dragImage).toHaveBeenCalledWith(image('saved.png'), document, 1));
+    await fireEvent.pointerUp(window);
+    expect(bridge.cancelDrag).toHaveBeenCalledWith(1);
+  });
+  it('preserves the image and annotations after cancelled saves and output failures', async () => {
+    vi.mocked(bridge.saveImage).mockResolvedValueOnce(null).mockRejectedValueOnce(new Error('Disk full'));
+    await openAndDraw();
+    await fireEvent.keyDown(window, { key: 's', ctrlKey: true });
+    await waitFor(() => expect(bridge.saveImage).toHaveBeenCalledOnce());
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Open image' }) as HTMLButtonElement).disabled).toBe(false));
+    expect(screen.getByLabelText('test.png, 2 by 1 pixels')).toBeTruthy();
+    await fireEvent.keyDown(window, { key: 's', ctrlKey: true });
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Disk full'));
+    expect(JSON.parse(vi.mocked(bridge.saveImage).mock.calls[1][1]).elements).toHaveLength(1);
     expect(screen.getByLabelText('test.png, 2 by 1 pixels')).toBeTruthy();
   });
 });

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
-import { openImage, pasteImage } from './bridge';
+import { openImage, pasteImage, copyImage, saveImage, dragImage } from './bridge';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn(), isTauri: () => true }));
 beforeEach(() => vi.mocked(invoke).mockReset());
@@ -20,4 +20,16 @@ describe('native image transport', () => {
     vi.mocked(invoke).mockResolvedValueOnce(bytes.buffer).mockResolvedValueOnce(Array.from(bytes));
     expect((await openImage())?.pixels).toEqual((await pasteImage())?.pixels);
   });
+});
+
+it('passes annotation snapshots and save intent without any frontend filesystem path', async () => {
+  const image = { name: 'test.png', width: 1, height: 1, pixels: new Uint8ClampedArray([1, 2, 3, 255]) };
+  const document = '{"format":"scribblecap/1"}';
+  vi.mocked(invoke).mockResolvedValue(null);
+  await copyImage(image, document);
+  expect(invoke).toHaveBeenLastCalledWith('shell_copy_image', { width: 1, height: 1, pixels: [1, 2, 3, 255], document });
+  await saveImage(image, document, true, false);
+  expect(invoke).toHaveBeenLastCalledWith('shell_save_image', { name: 'test.png', width: 1, height: 1, pixels: [1, 2, 3, 255], document, saveAs: true, flat: false });
+  await dragImage(image, document, 7);
+  expect(invoke).toHaveBeenLastCalledWith('shell_drag_image', { width: 1, height: 1, pixels: [1, 2, 3, 255], document, gesture: 7 });
 });

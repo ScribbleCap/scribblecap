@@ -4,7 +4,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use scribblecap_formats::RasterImage;
+use scribblecap_formats::{EditableDocument, RasterImage};
 use tauri::{AppHandle, Manager, ipc::Response};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_dialog::DialogExt;
@@ -44,19 +44,68 @@ fn packet(name: &str, image: RasterImage) -> Result<Vec<u8>, String> {
     Ok(out)
 }
 
-fn read_image(path: &Path) -> Result<(String, Vec<u8>), String> {
+fn loaded_packet(name: &str, image: RasterImage, editable: bool) -> Result<Vec<u8>, String> {
+    let mut bytes = packet(name, image)?;
+    if editable {
+        bytes[4..8].copy_from_slice(&2u32.to_le_bytes());
+        bytes.splice(20..20, 1u32.to_le_bytes());
+    }
+    Ok(bytes)
+}
+
+#[derive(Default)]
+pub struct Session {
+    pub editable: Option<EditableDocument>,
+    pub preview: Option<RasterImage>,
+    pub target: Option<PathBuf>,
+}
+#[derive(Default)]
+pub struct ImageSession(pub std::sync::Mutex<Session>);
+
+fn remember(
+    app: &AppHandle,
+    editable: Option<EditableDocument>,
+    preview: RasterImage,
+    target: Option<PathBuf>,
+) -> Result<(), String> {
+    *app.state::<ImageSession>()
+        .0
+        .lock()
+        .map_err(|_| "The image session is unavailable.")? = Session {
+        target: target.filter(|path| save_in_place(editable.is_some(), path)),
+        editable,
+        preview: Some(preview),
+    };
+    Ok(())
+}
+
+/// Save writes an editable PNG. It goes straight back only to an editable PNG;
+/// any other opened file (a photo, a plain PNG) gets a new PNG chosen in a dialog,
+/// so the original is never replaced.
+pub(crate) fn save_in_place(editable: bool, path: &Path) -> bool {
+    editable
+        && path
+            .extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|e| e.eq_ignore_ascii_case("png"))
+}
+
+type OpenedInput = (String, Vec<u8>, Option<EditableDocument>, RasterImage);
+fn read_image(path: &Path) -> Result<OpenedInput, String> {
     let file = std::fs::File::open(path)
         .map_err(|e| format!("The image file could not be opened: {e}"))?;
     let bytes = read_limited(file, MAX_FILE_BYTES)?;
-    let decoded = scribblecap_formats::decode(&bytes)
+    // Damaged editable metadata is an error, never silently flattened on save.
+    let opened = scribblecap_formats::open(&bytes)
         .map_err(|e| format!("This image could not be opened. {e}"))?;
     let name = path
         .file_name()
         .unwrap_or_default()
         .to_string_lossy()
         .into_owned();
-    let bytes = packet(&name, decoded.image)?;
-    Ok((name, bytes))
+    let preview = opened.raster.image;
+    let bytes = loaded_packet(&name, preview.clone(), opened.editable.is_some())?;
+    Ok((name, bytes, opened.editable, preview))
 }
 
 fn set_title(app: &AppHandle, name: &str) {
@@ -92,9 +141,12 @@ pub async fn shell_drop_image(app: AppHandle) -> Result<Response, String> {
         // the UI asked). An empty packet means "nothing to open".
         return Ok(Response::new(Vec::new()));
     };
-    let (name, bytes) = tauri::async_runtime::spawn_blocking(move || read_image(&path))
-        .await
-        .map_err(|e| format!("Image opening stopped: {e}"))??;
+    let target = path.clone();
+    let (name, bytes, editable, preview) =
+        tauri::async_runtime::spawn_blocking(move || read_image(&path))
+            .await
+            .map_err(|e| format!("Image opening stopped: {e}"))??;
+    remember(&app, editable, preview, Some(target))?;
     set_title(&app, &name);
     Ok(Response::new(bytes))
 }
@@ -118,12 +170,14 @@ pub async fn shell_open_image(app: AppHandle) -> Result<Response, String> {
         let path = selected
             .into_path()
             .map_err(|e| format!("The selected file is unavailable: {e}"))?;
-        read_image(&path).map(Some)
+        read_image(&path)
+            .map(|(name, bytes, editable, preview)| Some((name, bytes, editable, preview, path)))
     })
     .await
     .map_err(|e| format!("Image opening stopped: {e}"))?;
     match result? {
-        Some((name, bytes)) => {
+        Some((name, bytes, editable, preview, target)) => {
+            remember(&app, editable, preview, Some(target))?;
             set_title(&app, &name);
             Ok(Response::new(bytes))
         }
@@ -140,7 +194,9 @@ pub async fn shell_paste_image(app: AppHandle) -> Result<Response, String> {
         })?;
         let image = RasterImage::new(image.width(), image.height(), image.rgba().to_vec())
             .map_err(|e| e.to_string())?;
-        packet("Clipboard image", image)
+        let bytes = packet("Clipboard image", image.clone())?;
+        remember(&worker, None, image, None)?;
+        Ok::<_, String>(bytes)
     })
     .await
     .map_err(|e| format!("Image paste stopped: {e}"))??;
@@ -193,5 +249,14 @@ mod tests {
         let one = PathBuf::from("one.png");
         assert_eq!(single_drop(vec![one.clone()]), Ok(Some(one)));
         assert!(single_drop(vec!["a.png".into(), "b.png".into()]).is_err());
+    }
+
+    #[test]
+    fn save_goes_back_only_to_an_editable_png() {
+        assert!(save_in_place(true, Path::new("notes.png")));
+        assert!(save_in_place(true, Path::new("NOTES.PNG")));
+        assert!(!save_in_place(false, Path::new("plain.png")));
+        assert!(!save_in_place(true, Path::new("photo.jpg")));
+        assert!(!save_in_place(true, Path::new("photo.webp")));
     }
 }

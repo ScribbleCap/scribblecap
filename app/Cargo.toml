@@ -16,8 +16,16 @@ tauri.workspace = true
 scribblecap-core.workspace = true
 scribblecap-formats.workspace = true
 scribblecap-capture.workspace = true
+tempfile = "3"
 tauri-plugin-dialog = "2"
 tauri-plugin-clipboard-manager = "2"
 
 [lints]
 workspace = true
+
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+drag = "2.1.1"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
+url = "2"

@@ -24,11 +24,22 @@ describe('native binary image packet', () => {
     expect(decodeImagePacket(new ArrayBuffer(0))).toBeNull();
   });
   it('rejects invalid headers, impossible dimensions and truncated pixel data', () => {
-    for (const [offset, value] of [[0, 0], [4, 2], [8, 0], [8, 0xffffffff], [16, 0xffffffff]]) {
+    for (const [offset, value] of [[0, 0], [4, 99], [8, 0], [8, 0xffffffff], [16, 0xffffffff]]) {
       const data = packet();
       new DataView(data).setUint32(offset, value, true);
       expect(() => decodeImagePacket(data)).toThrow();
     }
     expect(() => decodeImagePacket(packet().slice(0, -1))).toThrow();
   });
+});
+
+it('decodes editable flags and rejects unknown flags in version 2', () => {
+  const old = new Uint8Array(packet());
+  const bytes = new Uint8Array(old.length + 4);
+  bytes.set(old.subarray(0, 20)); bytes.set(old.subarray(20), 24);
+  const header = new DataView(bytes.buffer);
+  header.setUint32(4, 2, true); header.setUint32(20, 1, true);
+  expect(decodeImagePacket(bytes.buffer)?.editable).toBe(true);
+  header.setUint32(20, 2, true);
+  expect(() => decodeImagePacket(bytes.buffer)).toThrow();
 });

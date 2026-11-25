@@ -33,3 +33,14 @@ export async function browserImage(file: Blob, name: string): Promise<LoadedImag
 export async function droppedImage(): Promise<LoadedImage | null> {
   return nativeImage('shell_drop_image');
 }
+
+export async function copyImage(image: LoadedImage, document: string): Promise<void> {
+  await invoke('shell_copy_image', { width: image.width, height: image.height, pixels: Array.from(image.pixels), document });
+}
+export async function saveImage(image: LoadedImage, document: string, saveAs = false, flat = false): Promise<string | null> {
+  return invoke('shell_save_image', { name: image.name, width: image.width, height: image.height, pixels: Array.from(image.pixels), document, saveAs, flat });
+}
+export async function dragImage(image: LoadedImage, document: string, gesture: number): Promise<void> {
+  await invoke('shell_drag_image', { width: image.width, height: image.height, pixels: Array.from(image.pixels), document, gesture });
+}
+export async function cancelDrag(gesture: number): Promise<void> { await invoke('shell_cancel_drag', { gesture }); }

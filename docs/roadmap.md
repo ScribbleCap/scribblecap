@@ -115,7 +115,10 @@ scheduled alongside the tasks below (D1–D3 and D6a can start now)._
   [editor.md](editor.md#undo-and-redo).
 - [ ] **M2-7 Crop, resize, expand canvas, rotate/flip.**
 - [ ] **M2-8 Pixelate and redact** (destructive; original replaced in stored resource).
-- [ ] **M2-9 Copy, drag-out, save / save as** in every supported format.
+- [~] **M2-9 Copy, drag-out, save / save as** in every supported format (`agent/m2-9-file-actions`).
+  Current annotations render through core; editable PNG/JPEG/WebP saves, explicit
+  flat exports, atomic writes and native drag-out implemented. Desktop clipboard,
+  dialogs and drag delivery smoke checks remain on all three OSes; see [app-shell.md](app-shell.md).
 - [ ] **M2-10 Stamps and step counters.** New artwork (no Skitch assets).
 
 ## M3 — _moved to M6 (PDF annotation after the first release)_
