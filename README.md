@@ -26,9 +26,51 @@ See [docs/vision.md](docs/vision.md) for goals and non-goals.
 
 ## Try it from source
 
-You need [Rust](https://rustup.rs) (the pinned version installs itself), Node 24 and
-pnpm (`corepack enable`). On Linux, also install
-[Tauri's system packages](https://v2.tauri.app/start/prerequisites/#linux).
+### Prerequisites
+
+| Tool | Version | Check with | Notes |
+|---|---|---|---|
+| Rust (via [rustup](https://rustup.rs)) | 1.99.1, plus the `wasm32-unknown-unknown` target | `cargo --version` | Pinned in `rust-toolchain.toml`; rustup installs the right version and target on the first build. Install rustup, not a distro or Homebrew `rust` package. |
+| Node.js | 24 | `node --version` | Pinned in `ui/.node-version`. |
+| pnpm | 12.16.1 | `pnpm --version` | Pinned in `ui/package.json`; `corepack enable` provides it. |
+| Git | any recent | `git --version` | |
+
+Plus the platform tools Tauri 2 needs to build a desktop app:
+
+**macOS**
+
+```sh
+xcode-select --install          # Xcode Command Line Tools (compiler, linker)
+```
+
+**Windows**
+
+- [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
+  with the "Desktop development with C++" workload.
+- WebView2 (already installed on Windows 10 and 11).
+- Rust's default `msvc` toolchain (rustup picks it).
+
+**Linux (Debian / Ubuntu)**
+
+```sh
+sudo apt-get install build-essential curl wget file libwebkit2gtk-4.1-dev \
+  libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+```
+
+Other distributions: see [Tauri's Linux prerequisites](https://v2.tauri.app/start/prerequisites/#linux).
+
+### Install the tools
+
+```sh
+# Rust (skip if `cargo --version` already works)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source "$HOME/.cargo/env"       # or open a new terminal
+
+# pnpm, using Node 24's corepack
+corepack enable
+```
+
+### Build and run
 
 ```sh
 git clone https://github.com/ScribbleCap/scribblecap
@@ -37,7 +79,24 @@ pnpm --dir ui install
 pnpm --dir ui tauri dev
 ```
 
-The development command builds the WebAssembly core before starting the editor.
+The first run downloads the pinned Rust toolchain and builds the WebAssembly core,
+so it takes a few minutes.
+
+### Capturing on macOS
+
+Capture needs Screen Recording permission. The first capture asks for it; grant it in
+System Settings → Privacy & Security → Screen & System Audio Recording, then quit and
+restart the app. When you run from a terminal, macOS may list the terminal app rather
+than ScribbleCap.
+
+### Troubleshooting
+
+- **`failed to run 'cargo metadata'`**: the terminal can't find `cargo`. Run
+  `source "$HOME/.cargo/env"` or open a new terminal, then check `cargo --version`.
+  If it still fails, `cargo metadata --format-version 1 > /dev/null` prints the real
+  error.
+- **`corepack` or `pnpm` not found**: check that `node --version` shows 24.
+- **Linker or `cc` errors on macOS**: install the Command Line Tools (above).
 
 **Works today:** open, paste or drop an image; annotate; undo; copy, save and export;
 drag out; crop, resize and rotate; capture (macOS, Windows, X11; Wayland in progress).
