@@ -31,7 +31,8 @@ selection overlay, previous region and a timer. The result opens in the editor.
   with an option to hide the Dock icon, and a Linux tray icon.
 - Scrolling capture, video and screen recording.
 - Annotating on the overlay before the editor opens.
-- Remembering the previous region across app restarts (needs M5-2 settings).
+- Remembering the previous region across app restarts.
+- Other settings (theme, HiDPI and so on stay in M5-2).
 
 ## Anti-goals (a failure even if it works)
 
@@ -127,8 +128,30 @@ unsaved-work check and window hiding apply as above.
 
 ### After capture
 
-- The image opens like a pasted one: name `Screenshot <date time>`, nothing to save to
-  yet, so the first Save asks for a PNG name (the M2-9 rule).
+- The image is named `Screenshot <date time>` (for example
+  `Screenshot 2026-11-24 18.42.07`).
+
+### Capture save folder and auto-save (maintainer's decisions)
+
+- **Capture save folder.** The app remembers one folder for captures. The first time
+  one is needed and none is set, a folder picker asks for it, and the answer is kept.
+  If the folder later disappears or can't be written to, the app asks again.
+- **Auto-save is a setting, off by default.**
+  - **Off:** nothing is written until the user presses Save. The first Save of a
+    capture goes straight to `<folder>/Screenshot <date time>.png` without a dialog
+    (an editable PNG, the M2-9 rule); later Saves overwrite that file. Save As still
+    asks, starting in the capture folder.
+  - **On:** every capture is written to `<folder>/Screenshot <date time>.png` as soon
+    as it lands in the editor. Save overwrites that same file. Discarding a capture
+    keeps the file that was written.
+  - Never overwrite an existing file the app didn't create for this capture: if the
+    name is taken, add ` (2)`, ` (3)` and so on.
+  - Only captures use the folder; opened, pasted and dropped images keep the M2-9 rules.
+- **Settings panel.** A small Settings panel, built now, with two rows: *Capture save
+  folder* (shows the path, with a Change… button) and *Auto-save captures* (a switch,
+  off). M5-2's other settings will go here later.
+- **Storage.** Settings live in one small file in the app's config folder. How is left
+  to the builder; a new dependency needs a decision record (AGENTS.md).
 - The image is in pixels. Desktop-point scale from `CapturedImage::scale` is not used
   for editing yet. **My call:** keep it out of the document until HiDPI work in M5-2.
 
