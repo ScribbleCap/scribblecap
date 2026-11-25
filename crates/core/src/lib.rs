@@ -3,6 +3,7 @@
 //! Must stay free of UI and OS APIs (see `AGENTS.md`). The document format is specified
 //! in `docs/file-format.md`.
 
+pub mod canvas;
 pub mod color;
 pub mod document;
 pub mod element;

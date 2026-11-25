@@ -328,6 +328,19 @@ describe('file output with the real editing core', () => {
     await fireEvent.pointerMove(viewport, { pointerId: 10, isPrimary: true, clientX: 450, clientY: 320 });
     await fireEvent.pointerUp(viewport, { pointerId: 10 });
   }
+  it('blocks raster transforms while new annotations are present', async () => {
+    await openAndDraw();
+    expect((screen.getByRole('button', { name: 'Apply' }) as HTMLButtonElement).disabled).toBe(true);
+    await fireEvent.keyDown(window, { key: 'Delete' });
+    expect((screen.getByRole('button', { name: 'Apply' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+  it('blocks raster transforms for an imported editable image', async () => {
+    vi.mocked(bridge.openImage).mockResolvedValue({ ...image(), editable: true });
+    render(App);
+    await fireEvent.click(screen.getByRole('button', { name: 'Open image' }));
+    await waitFor(() => expect(screen.getByLabelText('test.png, 2 by 1 pixels')).toBeTruthy());
+    expect((screen.getByRole('button', { name: 'Apply' }) as HTMLButtonElement).disabled).toBe(true);
+  });
   it('sends current editable annotations for copy, save, save-as and native drag', async () => {
     vi.mocked(bridge.saveImage).mockResolvedValue('saved.png');
     await openAndDraw();
