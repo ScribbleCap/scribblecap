@@ -144,8 +144,11 @@ unsaved-work check and window hiding apply as above.
   - **On:** every capture is written to `<folder>/Screenshot <date time>.png` as soon
     as it lands in the editor. Save overwrites that same file. Discarding a capture
     keeps the file that was written.
-  - Never overwrite an existing file the app didn't create for this capture: if the
-    name is taken, add ` (2)`, ` (3)` and so on.
+  - Names carry no counters. They are unique by capture time, to the second; if that
+    name already exists (two captures in the same second), the milliseconds are added,
+    for example `Screenshot 2026-11-24 18.42.07.315.png`. Never overwrite a file the
+    app didn't create for this capture: if even that name exists, wait a millisecond
+    and retry with the new time.
   - Only captures use the folder; opened, pasted and dropped images keep the M2-9 rules.
 - **Settings panel.** A small Settings panel, built now, with two rows: *Capture save
   folder* (shows the path, with a Change… button) and *Auto-save captures* (a switch,
