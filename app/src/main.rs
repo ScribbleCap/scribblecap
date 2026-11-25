@@ -4,6 +4,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod canvas;
+// Used by later M4-5 tasks (capture flow).
+#[allow(dead_code)]
+mod capture;
 mod menus;
 mod output;
 #[cfg(target_os = "linux")]
