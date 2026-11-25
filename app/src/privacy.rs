@@ -377,6 +377,34 @@ mod tests {
         assert_eq!(&packet[..4], &2_u32.to_le_bytes());
     }
     #[test]
+    fn privacy_edits_and_undo_make_a_capture_save_ask_for_a_destination() {
+        use crate::output::{SaveTarget, save_target};
+        let saved = |session: &crate::shell::Session| {
+            save_target(
+                false,
+                false,
+                session.target.as_deref(),
+                session.capture_name.is_some(),
+            )
+        };
+        let mut history = History::default();
+        // An auto-saved capture: Save would overwrite its file in place.
+        let mut session = crate::shell::Session {
+            preview: Some(source()),
+            target: Some("/c/Screenshot 2026-11-25 10.00.00.png".into()),
+            capture_name: Some("Screenshot 2026-11-25 10.00.00".into()),
+            ..Default::default()
+        };
+        assert!(matches!(saved(&session), SaveTarget::Existing(_)));
+        apply(&mut history, &mut session, source(), metadata(0, "redact")).unwrap();
+        assert_eq!(saved(&session), SaveTarget::Dialog);
+        // Undo back to the original pixels must not resume silent capture saves either.
+        restore(&mut history, &mut session, 0).unwrap();
+        assert_eq!(saved(&session), SaveTarget::Dialog);
+        restore(&mut history, &mut session, 1).unwrap();
+        assert_eq!(saved(&session), SaveTarget::Dialog);
+    }
+    #[test]
     fn exhausted_history_budget_rejects_without_discarding_undo_or_current_pixels() {
         let mut history = History::default();
         let mut session = crate::shell::Session::default();

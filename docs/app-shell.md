@@ -196,6 +196,14 @@ decision: [0016](decisions/0016-in-app-capture.md).
 - **Unsaved work.** Capture, Open, Paste and Drop first ask **Save… / Discard / Cancel**
   when the image has unsaved changes. The prompt is modal. An untouched capture is
   replaced without asking, even with auto-save off.
+  Privacy edits (Pixelate, Redact) and their undo/redo count as unsaved work like any
+  other edit; undoing back to the last saved state is clean again. While the prompt
+  or Settings is open, editor shortcuts, native menu commands and drops are ignored.
+- **Captures and privacy edits.** A capture starts with fresh privacy history, like
+  any newly opened image. A privacy edit, or its undo/redo, clears both the in-place
+  save target and the capture-folder save, so the next Save asks where to write;
+  an earlier auto-saved capture file is never overwritten with different pixels
+  without asking.
 - **Errors.** A permission error (macOS Screen Recording, or a cancelled portal)
   shows text naming System Settings > Privacy & Security > Screen & System Audio
   Recording; there is no link yet. A folder that does not support new-file creation

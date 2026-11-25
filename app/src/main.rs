@@ -73,3 +73,49 @@ fn main() {
             }
         });
 }
+
+#[cfg(test)]
+mod tests {
+    /// Names inside `generate_handler![...]` in this file.
+    fn registered() -> Vec<String> {
+        let source = include_str!("main.rs");
+        let start = source.find("generate_handler![").expect("handler list") + 18;
+        let end = start + source[start..].find(']').expect("end of handler list");
+        source[start..end]
+            .split(',')
+            .filter_map(|entry| entry.trim().rsplit("::").next())
+            .filter(|name| !name.is_empty())
+            .map(str::to_owned)
+            .collect()
+    }
+
+    #[test]
+    fn every_registered_command_is_in_the_app_manifest() {
+        let manifest = include_str!("../build.rs");
+        for name in registered() {
+            assert!(
+                manifest.contains(&format!("\"{name}\"")),
+                "{name} missing from build.rs COMMANDS"
+            );
+        }
+    }
+
+    #[test]
+    fn the_editor_window_may_call_every_command_it_uses() {
+        let capability: serde_json::Value =
+            serde_json::from_str(include_str!("../capabilities/default.json")).expect("valid JSON");
+        let granted: Vec<&str> = capability["permissions"]
+            .as_array()
+            .expect("permissions")
+            .iter()
+            .filter_map(|value| value.as_str())
+            .collect();
+        for name in registered() {
+            let permission = format!("allow-{}", name.replace('_', "-"));
+            assert!(
+                granted.contains(&permission.as_str()),
+                "{permission} missing from default.json"
+            );
+        }
+    }
+}

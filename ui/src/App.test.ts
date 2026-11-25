@@ -260,6 +260,37 @@ describe('annotation tools', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'Copy image' }));
     expect(JSON.parse(vi.mocked(bridge.copyImage).mock.calls.at(-1)![1]).elements).toHaveLength(1);
   });
+  it('a privacy edit is unsaved work; undoing it back to the saved state is clean (M4-5 integration)', async () => {
+    await openBig();
+    const large = { name: 'test.png', width: 400, height: 200, pixels: new Uint8ClampedArray(400*200*4) };
+    vi.mocked(bridge.privacyImage).mockResolvedValue({ ...large, privacyRevision: 1 });
+    vi.mocked(bridge.restorePrivacy).mockImplementation(async revision => ({ ...large, privacyRevision: revision }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Apply privacy edit' }));
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Undo' }) as HTMLButtonElement).disabled).toBe(false));
+    await fireEvent.click(screen.getByRole('button', { name: 'Capture' }));
+    expect(screen.getByRole('alertdialog')).toBeTruthy();
+    await fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(bridge.restorePrivacy).toHaveBeenCalledWith(0));
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Redo' }) as HTMLButtonElement).disabled).toBe(false));
+    await fireEvent.click(screen.getByRole('button', { name: 'Capture' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    await waitFor(() => expect(capture.captureImage).toHaveBeenCalledWith('region'));
+    // Redo brings the privacy edit back: unsaved again.
+    await fireEvent.click(screen.getByRole('button', { name: 'Redo' }));
+    await waitFor(() => expect(bridge.restorePrivacy).toHaveBeenCalledWith(1));
+    await fireEvent.click(screen.getByRole('button', { name: 'Capture' }));
+    expect(screen.getByRole('alertdialog')).toBeTruthy();
+  });
+  it('privacy shortcuts are inert while the capture settings dialog is open (M4-5 integration)', async () => {
+    await openBig();
+    await fireEvent.click(screen.getByRole('button', { name: 'Capture options' }));
+    await fireEvent.click(await screen.findByRole('menuitem', { name: 'Settings…' }));
+    await fireEvent.keyDown(window, { key: 'p' });
+    await fireEvent.keyDown(window, { key: 'x' });
+    expect(screen.queryByText(/drag a region to replace background pixels/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Pixelate' }).getAttribute('aria-pressed')).toBe('false');
+  });
   it('navigates tools with the keyboard and preserves native text-field keys', async () => {
     await openBig();
     const arrow = screen.getByRole('button', { name: 'Arrow' });
