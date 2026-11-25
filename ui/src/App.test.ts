@@ -309,6 +309,24 @@ describe('annotation tools', () => {
     expect(within(more as HTMLElement).getByText(/^Annotations/)).toBeTruthy();
     expect(header.querySelector('summary[aria-label^="Colour and size: #"]')).toBeTruthy();
   });
+  it('keeps title-bar menus usable from the keyboard', async () => {
+    await openBig();
+    const header = document.querySelector('header.titlebar')!;
+    const shapes = header.querySelector<HTMLElement>('.shape-menu summary')!;
+    shapes.focus();
+    await fireEvent.keyDown(shapes, { key: 'ArrowRight' });
+    expect(pressed()).toEqual(['Arrow']);
+    const more = header.querySelector<HTMLDetailsElement>('.more-actions')!; more.open = true;
+    const canvas = within(more).getByText('Canvas'); canvas.focus();
+    await fireEvent.keyDown(canvas, { key: 'Escape' });
+    expect(more.open).toBe(false);
+    const select = screen.getByLabelText('Tool') as HTMLSelectElement;
+    await fireEvent.change(select, { target: { value: 'redact' } });
+    expect(pressed()).toEqual(['Redact']);
+    expect(select.value).toBe('redact');
+    await fireEvent.change(select, { target: { value: 'arrow' } });
+    expect(pressed()).toEqual(['Arrow']);
+  });
   it('navigates tools with the keyboard and preserves native text-field keys', async () => {
     await openBig();
     const arrow = screen.getByRole('button', { name: 'Arrow' });
