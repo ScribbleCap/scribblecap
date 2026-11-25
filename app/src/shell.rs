@@ -1,7 +1,8 @@
 //! Native image input. No arbitrary filesystem commands are exposed to the UI.
 
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 use scribblecap_formats::RasterImage;
 use tauri::{AppHandle, Manager, ipc::Response};
@@ -62,6 +63,40 @@ fn set_title(app: &AppHandle, name: &str) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.set_title(&format!("{name} — ScribbleCap"));
     }
+}
+
+/// Only paths delivered by the native OS drop event are accepted.
+#[derive(Default)]
+pub struct DroppedImage(pub Mutex<Vec<PathBuf>>);
+
+/// `None` when there is nothing left to open; an error for a multi-file drop.
+fn single_drop(mut paths: Vec<PathBuf>) -> Result<Option<PathBuf>, String> {
+    match paths.len() {
+        0 => Ok(None),
+        1 => Ok(paths.pop()),
+        _ => Err("Drop one image at a time.".into()),
+    }
+}
+
+#[tauri::command]
+pub async fn shell_drop_image(app: AppHandle) -> Result<Response, String> {
+    let paths = std::mem::take(
+        &mut *app
+            .state::<DroppedImage>()
+            .0
+            .lock()
+            .map_err(|_| "The file drop is unavailable.")?,
+    );
+    let Some(path) = single_drop(paths)? else {
+        // An earlier request already consumed this drop (two drops arrived before
+        // the UI asked). An empty packet means "nothing to open".
+        return Ok(Response::new(Vec::new()));
+    };
+    let (name, bytes) = tauri::async_runtime::spawn_blocking(move || read_image(&path))
+        .await
+        .map_err(|e| format!("Image opening stopped: {e}"))??;
+    set_title(&app, &name);
+    Ok(Response::new(bytes))
 }
 
 #[tauri::command]
@@ -150,5 +185,13 @@ mod tests {
         std::fs::remove_file(&path).unwrap();
         assert_eq!(result.unwrap().1.last(), Some(&255));
         assert!(read_image(&path).is_err());
+    }
+
+    #[test]
+    fn a_consumed_drop_opens_nothing_and_multiple_files_are_rejected() {
+        assert_eq!(single_drop(vec![]), Ok(None));
+        let one = PathBuf::from("one.png");
+        assert_eq!(single_drop(vec![one.clone()]), Ok(Some(one)));
+        assert!(single_drop(vec!["a.png".into(), "b.png".into()]).is_err());
     }
 }

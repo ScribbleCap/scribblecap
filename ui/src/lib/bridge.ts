@@ -28,3 +28,8 @@ export async function browserImage(file: Blob, name: string): Promise<LoadedImag
     return { name, width: bitmap.width, height: bitmap.height, pixels: context.getImageData(0, 0, bitmap.width, bitmap.height).data };
   } finally { bitmap.close(); }
 }
+
+/** The native event authorizes the path; JavaScript cannot supply one. */
+export async function droppedImage(): Promise<LoadedImage | null> {
+  return nativeImage('shell_drop_image');
+}

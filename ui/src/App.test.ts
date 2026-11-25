@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import App from './App.svelte';
+import { listen } from '@tauri-apps/api/event';
 import * as bridge from './lib/bridge';
 import type { LoadedImage } from './lib/image-packet';
 
-vi.mock('./lib/bridge', () => ({ desktop: true, openImage: vi.fn(), pasteImage: vi.fn(), browserImage: vi.fn() }));
+vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
+vi.mock('./lib/bridge', () => ({ droppedImage: vi.fn(), desktop: true, openImage: vi.fn(), pasteImage: vi.fn(), browserImage: vi.fn() }));
 // The real core WebAssembly module (built by `pnpm test`), loaded from disk; a fresh
 // instance per test keeps documents independent.
 vi.mock('./lib/core', async original => {
@@ -21,6 +23,8 @@ const viewTransform = () => transform.mock.calls.at(-2);
 let resize: ResizeObserverCallback | undefined;
 beforeEach(() => {
   vi.mocked(bridge.openImage).mockReset(); vi.mocked(bridge.pasteImage).mockReset(); transform.mockReset();
+  vi.mocked(listen).mockReset().mockResolvedValue(vi.fn());
+  vi.mocked(bridge.droppedImage).mockReset();
   resize = undefined;
   vi.stubGlobal('ResizeObserver', class { constructor(callback: ResizeObserverCallback) { resize = callback; } observe() {} disconnect() {} });
   vi.stubGlobal('ImageData', class { constructor(public data: Uint8ClampedArray, public width: number, public height: number) {} });
@@ -278,5 +282,31 @@ describe('annotation tools', () => {
     expect(viewTransform()).not.toEqual(before);
     await fireEvent.keyUp(window, { key: ' ' });
     expect(viewport.style.cursor).toBe('crosshair');
+  });
+});
+
+describe('native file drops', () => {
+  it('consumes native drops without accepting a frontend path and removes its listener', async () => {
+    const stop = vi.fn();
+    vi.mocked(listen).mockResolvedValue(stop);
+    vi.mocked(bridge.droppedImage).mockResolvedValue(image('dropped.png'));
+    const mounted = render(App);
+    await waitFor(() => expect(listen).toHaveBeenCalledWith('shell-file-drop', expect.any(Function)));
+    const handler = vi.mocked(listen).mock.calls[0][1];
+    handler({ event: 'shell-file-drop', id: 0, payload: null });
+    await waitFor(() => expect(screen.getByLabelText('dropped.png, 2 by 1 pixels')).toBeTruthy());
+    expect(bridge.droppedImage).toHaveBeenCalledWith();
+    mounted.unmount();
+    expect(stop).toHaveBeenCalledOnce();
+  });
+  it('keeps the current image when a native drop is rejected', async () => {
+    vi.mocked(bridge.openImage).mockResolvedValue(image());
+    vi.mocked(bridge.droppedImage).mockRejectedValue(new Error('Drop one image at a time.'));
+    render(App);
+    await fireEvent.click(screen.getByRole('button', { name: 'Open image' }));
+    await waitFor(() => expect(screen.getByLabelText('test.png, 2 by 1 pixels')).toBeTruthy());
+    vi.mocked(listen).mock.calls[0][1]({ event: 'shell-file-drop', id: 0, payload: null });
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Drop one image at a time.'));
+    expect(screen.getByLabelText('test.png, 2 by 1 pixels')).toBeTruthy();
   });
 });

@@ -81,3 +81,10 @@ inspected. The maintainer confirmed Open image and Paste image both work after t
 WebKit byte-array transport fix. Automated native UI capture became unreliable
 (ScreenCaptureKit stream error), so zoom/drag/resize behavior is covered by the UI
 interaction/transform tests rather than claimed as fully automated native QA.
+
+## File drops (D6a)
+
+Drop one image anywhere on the window to open it. Native OS paths enter the same
+bounded decoder as Open; JavaScript cannot supply a filesystem path. A failed or
+multiple-file drop leaves the current image and annotations intact. Browser-only
+preview supports one dropped Blob. Native drop delivery still needs desktop smoke tests.
