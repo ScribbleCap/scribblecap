@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { pixelRequest } from './pixel-request';
 import { invoke } from '@tauri-apps/api/core';
 import { openImage, pasteImage, copyImage, saveImage, dragImage } from './bridge';
 
@@ -27,9 +28,9 @@ it('passes annotation snapshots and save intent without any frontend filesystem 
   const document = '{"format":"scribblecap/1"}';
   vi.mocked(invoke).mockResolvedValue(null);
   await copyImage(image, document);
-  expect(invoke).toHaveBeenLastCalledWith('shell_copy_image', { width: 1, height: 1, pixels: [1, 2, 3, 255], document });
+  expect(invoke).toHaveBeenLastCalledWith('shell_copy_image', pixelRequest(image, { document }));
   await saveImage(image, document, true, false);
-  expect(invoke).toHaveBeenLastCalledWith('shell_save_image', { name: 'test.png', width: 1, height: 1, pixels: [1, 2, 3, 255], document, saveAs: true, flat: false });
+  expect(invoke).toHaveBeenLastCalledWith('shell_save_image', pixelRequest(image, { name: 'test.png', document, saveAs: true, flat: false }));
   await dragImage(image, document, 7);
-  expect(invoke).toHaveBeenLastCalledWith('shell_drag_image', { width: 1, height: 1, pixels: [1, 2, 3, 255], document, gesture: 7 });
+  expect(invoke).toHaveBeenLastCalledWith('shell_drag_image', pixelRequest(image, { document, gesture: 7 }));
 });

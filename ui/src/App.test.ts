@@ -6,7 +6,7 @@ import * as bridge from './lib/bridge';
 import type { LoadedImage } from './lib/image-packet';
 
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
-vi.mock('./lib/bridge', () => ({ droppedImage: vi.fn(), saveImage: vi.fn(), copyImage: vi.fn(), dragImage: vi.fn(), cancelDrag: vi.fn(), desktop: true, openImage: vi.fn(), pasteImage: vi.fn(), browserImage: vi.fn() }));
+vi.mock('./lib/bridge', () => ({ droppedImage: vi.fn(), saveImage: vi.fn(), copyImage: vi.fn(), dragImage: vi.fn(), beginDrag: vi.fn(), cancelDrag: vi.fn(), desktop: true, openImage: vi.fn(), pasteImage: vi.fn(), browserImage: vi.fn() }));
 // The real core WebAssembly module (built by `pnpm test`), loaded from disk; a fresh
 // instance per test keeps documents independent.
 vi.mock('./lib/core', async original => {
@@ -28,6 +28,7 @@ beforeEach(() => {
   vi.mocked(bridge.saveImage).mockReset();
   vi.mocked(bridge.copyImage).mockReset().mockResolvedValue();
   vi.mocked(bridge.dragImage).mockReset().mockResolvedValue();
+  vi.mocked(bridge.beginDrag).mockReset().mockResolvedValue(27);
   vi.mocked(bridge.cancelDrag).mockReset().mockResolvedValue();
   vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/png;base64,AA==');
   resize = undefined;
@@ -355,9 +356,20 @@ describe('file output with the real editing core', () => {
     expect(bridge.saveImage).toHaveBeenCalledWith(image(), document, true, false);
     const handle = screen.getByRole('button', { name: 'Drag image out; Enter copies the image' });
     await fireEvent.pointerDown(handle, { button: 0 });
-    await waitFor(() => expect(bridge.dragImage).toHaveBeenCalledWith(image('saved.png'), document, 1));
+    await waitFor(() => expect(bridge.dragImage).toHaveBeenCalledWith(image('saved.png'), document, 27));
     await fireEvent.pointerUp(window);
-    expect(bridge.cancelDrag).toHaveBeenCalledWith(1);
+    expect(bridge.cancelDrag).toHaveBeenCalledWith(27);
+  });
+  it('cancels a released pointer while Rust is still allocating a gesture ID', async () => {
+    let allocated!: (id: number) => void;
+    vi.mocked(bridge.beginDrag).mockReturnValue(new Promise(resolve => { allocated = resolve; }));
+    await openAndDraw();
+    await fireEvent.pointerDown(screen.getByRole('button', { name: 'Drag image out; Enter copies the image' }), { button: 0 });
+    await waitFor(() => expect(bridge.beginDrag).toHaveBeenCalledOnce());
+    await fireEvent.pointerUp(window);
+    allocated(81);
+    await waitFor(() => expect(bridge.cancelDrag).toHaveBeenCalledWith(81));
+    expect(bridge.dragImage).not.toHaveBeenCalled();
   });
   it('preserves the image and annotations after cancelled saves and output failures', async () => {
     vi.mocked(bridge.saveImage).mockResolvedValueOnce(null).mockRejectedValueOnce(new Error('Disk full'));

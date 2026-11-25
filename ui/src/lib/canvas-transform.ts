@@ -1,3 +1,4 @@
+import { pixelRequest } from './pixel-request';
 import { invoke } from '@tauri-apps/api/core';
 import { desktop } from './bridge';
 import { decodeImagePacket, MAX_IMAGE_BYTES, type LoadedImage } from './image-packet';
@@ -6,7 +7,7 @@ export interface CanvasTransform { operation: CanvasOperation; outputWidth: numb
 export async function transformImage(image: LoadedImage, request: CanvasTransform): Promise<LoadedImage> {
   if (image.editable) throw new Error('Canvas transforms for editable annotations are not available yet.');
   if (desktop) {
-    const result = await invoke<ArrayBuffer | number[]>('shell_transform_image', { ...request, name: image.name, width: image.width, height: image.height, pixels: Array.from(image.pixels) });
+    const result = await invoke<ArrayBuffer | number[]>('shell_transform_image', pixelRequest(image, { ...request, name: image.name }));
     const decoded = decodeImagePacket(result instanceof ArrayBuffer ? result : new Uint8Array(result).buffer);
     if (!decoded) throw new Error('The canvas transform returned no image.');
     return decoded;

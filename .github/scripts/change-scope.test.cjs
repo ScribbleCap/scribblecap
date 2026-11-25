@@ -17,6 +17,18 @@ test('NUL separated filenames and deleted code paths are classified', () => {
   assert.equal(classify(['src/a\nfile.rs', 'docs/renamed.md']), true);
 });
 
+test('crate READMEs always run checks because they may contain compiled doctests', () => {
+  for (const path of ['crates/core/README.md', 'crates/new-crate/README.md', 'crates/core/examples/README.md', 'app/README.md']) {
+    assert.equal(classify([path]), true, path);
+    assert.equal(detect.isDocumentation(path), false, path);
+  }
+  // Ordinary prose stays documentation; the guard does not require the README
+  // to exist at HEAD, so deletion and rename sources receive the same treatment.
+  assert.equal(classify(['crates/core/guide.md', 'docs/README.md', 'ui/README.md']), false);
+  const pr = { eventName: 'pull_request', payload: { pull_request: { base: { sha: 'abc' }, head: { sha: 'def' } } } };
+  assert.equal(detect(pr, assert.fail, () => 'crates/core/README.md\0docs/renamed.md\0'), true);
+});
+
 test('PRs use merge base; pushes use exact range; renames remain two paths', () => {
   for (const [context, range] of [
     [push, 'abc..def'],

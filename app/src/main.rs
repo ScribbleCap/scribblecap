@@ -7,6 +7,7 @@ mod canvas;
 mod output;
 #[cfg(target_os = "linux")]
 mod output_linux;
+mod pixel_request;
 mod shell;
 
 use tauri::{Emitter, Manager};
@@ -34,6 +35,7 @@ fn main() {
             canvas::shell_transform_image,
             output::shell_save_image,
             output::shell_drag_image,
+            output::shell_begin_drag,
             output::shell_cancel_drag
         ])
         .build(tauri::generate_context!())

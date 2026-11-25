@@ -1,10 +1,11 @@
 //! Native output paths are chosen by the user; frontend input is bounded RGBA only.
 use scribblecap_formats::{EditableDocument, RasterFormat, RasterImage};
 use std::{
+    collections::VecDeque,
     io::Write,
     path::Path,
     sync::{
-        Mutex,
+        Arc, Mutex,
         atomic::{AtomicU32, Ordering},
     },
 };
@@ -14,9 +15,51 @@ use tauri_plugin_dialog::DialogExt;
 
 #[derive(Default)]
 pub struct ShareState {
+    issued: AtomicU32,
     cancelled: AtomicU32,
-    files: Mutex<Vec<tempfile::TempDir>>,
+    files: Mutex<ShareFiles>,
 }
+// The cache owns the newest five shares. Native completion callbacks hold an
+// extra reference, so evicting an older share never removes an active drag's file.
+#[derive(Default)]
+struct ShareFiles(VecDeque<Arc<tempfile::TempDir>>);
+impl ShareFiles {
+    fn retain(&mut self, directory: tempfile::TempDir) -> Arc<tempfile::TempDir> {
+        let directory = Arc::new(directory);
+        self.0.push_back(directory.clone());
+        while self.0.len() > 5 {
+            self.0.pop_front();
+        }
+        directory
+    }
+    fn clear(&mut self) {
+        self.0.clear();
+    }
+}
+impl ShareState {
+    fn begin(&self) -> Result<u32, String> {
+        self.issued
+            .try_update(Ordering::SeqCst, Ordering::SeqCst, |id| id.checked_add(1))
+            .map(|id| id + 1)
+            .map_err(|_| "Restart the app before sharing another image.".into())
+    }
+    fn cancel(&self, gesture: u32) {
+        if gesture <= self.issued.load(Ordering::SeqCst) {
+            self.cancelled.fetch_max(gesture, Ordering::SeqCst);
+        }
+    }
+    fn is_cancelled(&self, gesture: u32) -> bool {
+        gesture == 0
+            || gesture > self.issued.load(Ordering::SeqCst)
+            || self.cancelled.load(Ordering::SeqCst) >= gesture
+    }
+}
+
+#[tauri::command]
+pub fn shell_begin_drag(app: AppHandle) -> Result<u32, String> {
+    app.state::<ShareState>().begin()
+}
+
 /// Tauri exits the process without unwinding managed state; clean generated files
 /// explicitly on normal exit rather than relying on TempDir's destructor then.
 pub fn cleanup_share_files(app: &AppHandle) {
@@ -27,11 +70,10 @@ pub fn cleanup_share_files(app: &AppHandle) {
 
 #[tauri::command]
 pub fn shell_cancel_drag(app: AppHandle, gesture: u32) {
-    app.state::<ShareState>()
-        .cancelled
-        .fetch_max(gesture, Ordering::SeqCst);
+    app.state::<ShareState>().cancel(gesture);
 }
 
+#[cfg(test)]
 fn image(width: u32, height: u32, pixels: Vec<u8>) -> Result<RasterImage, String> {
     if pixels.len() > 256 * 1024 * 1024 {
         return Err("This image is too large to save.".into());
@@ -220,16 +262,32 @@ fn atomic_save(path: &Path, bytes: &[u8]) -> Result<(), String> {
     Ok(())
 }
 
+#[derive(serde::Deserialize)]
+struct CopyMetadata {
+    document: String,
+}
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SaveMetadata {
+    name: String,
+    document: String,
+    save_as: bool,
+    flat: bool,
+}
+#[derive(serde::Deserialize)]
+struct DragMetadata {
+    document: String,
+    gesture: u32,
+}
+
 #[tauri::command]
 pub async fn shell_copy_image(
     app: AppHandle,
-    width: u32,
-    height: u32,
-    pixels: Vec<u8>,
-    document: String,
+    request: tauri::ipc::Request<'_>,
 ) -> Result<(), String> {
     use tauri_plugin_clipboard_manager::ClipboardExt;
-    let source = image(width, height, pixels)?;
+    let (source, CopyMetadata { document }) = crate::pixel_request::decode(&request)?;
+    let (width, height) = (source.width(), source.height());
     tauri::async_runtime::spawn_blocking(move || {
         let prepared = prepare(source, &document, None, false)?;
         app.clipboard()
@@ -244,19 +302,20 @@ pub async fn shell_copy_image(
     .map_err(|e| format!("Image copying stopped: {e}"))?
 }
 
-#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn shell_save_image(
     app: AppHandle,
-    name: String,
-    width: u32,
-    height: u32,
-    pixels: Vec<u8>,
-    document: String,
-    save_as: bool,
-    flat: bool,
+    request: tauri::ipc::Request<'_>,
 ) -> Result<Option<String>, String> {
-    let image = image(width, height, pixels)?;
+    let (
+        image,
+        SaveMetadata {
+            name,
+            document,
+            save_as,
+            flat,
+        },
+    ) = crate::pixel_request::decode(&request)?;
     tauri::async_runtime::spawn_blocking(move || {
         let (editable, preview, target) = {
             let session = app.state::<crate::shell::ImageSession>();
@@ -351,13 +410,9 @@ pub async fn shell_save_image(
 #[tauri::command]
 pub async fn shell_drag_image(
     app: AppHandle,
-    width: u32,
-    height: u32,
-    pixels: Vec<u8>,
-    document: String,
-    gesture: u32,
+    request: tauri::ipc::Request<'_>,
 ) -> Result<(), String> {
-    let image = image(width, height, pixels)?;
+    let (image, DragMetadata { document, gesture }) = crate::pixel_request::decode(&request)?;
     let worker = app.clone();
     let temporary = tauri::async_runtime::spawn_blocking(move || {
         let session = worker.state::<crate::shell::ImageSession>();
@@ -392,29 +447,33 @@ pub async fn shell_drag_image(
     let (sender, receiver) = std::sync::mpsc::sync_channel(1);
     let worker = app.clone();
     app.run_on_main_thread(move || {
-        if worker
-            .state::<ShareState>()
-            .cancelled
-            .load(Ordering::SeqCst)
-            >= gesture
-        {
+        if worker.state::<ShareState>().is_cancelled(gesture) {
             let _ = sender.send(Ok(()));
             return;
         }
         let path = temporary.path().join("ScribbleCap.png");
-        // Keep real files until app shutdown: destinations can read asynchronously
-        // after the OS reports a completed drop (especially GTK).
+        // Retain recent completed shares for asynchronous destination reads and
+        // pin the active share until the native completion callback is released.
         let state = worker.state::<ShareState>();
-        if let Ok(mut files) = state.files.lock() {
-            files.push(temporary);
+        let pin = if let Ok(mut files) = state.files.lock() {
+            files.retain(temporary)
         } else {
             let _ = sender.send(Err("The share files are unavailable.".into()));
             return;
-        }
+        };
+        let active = Mutex::new(Some(pin));
         let start = || {
             #[cfg(target_os = "linux")]
             {
-                crate::output_linux::start(&window.gtk_window().map_err(|e| e.to_string())?, &path)
+                crate::output_linux::start(
+                    &window.gtk_window().map_err(|e| e.to_string())?,
+                    &path,
+                    move || {
+                        if let Ok(mut pin) = active.lock() {
+                            pin.take();
+                        }
+                    },
+                )
             }
             #[cfg(not(target_os = "linux"))]
             {
@@ -422,7 +481,11 @@ pub async fn shell_drag_image(
                     &window,
                     drag::DragItem::Files(vec![path]),
                     drag::Image::Raw(include_bytes!("../icons/32x32.png").to_vec()),
-                    |_, _| {},
+                    move |_, _| {
+                        if let Ok(mut pin) = active.lock() {
+                            pin.take();
+                        }
+                    },
                     drag::Options {
                         mode: drag::DragMode::Copy,
                         ..Default::default()
@@ -442,6 +505,48 @@ pub async fn shell_drag_image(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn share_cache_keeps_five_newest_and_pins_in_progress_drags() {
+        let mut files = ShareFiles::default();
+        let active = files.retain(tempfile::tempdir().unwrap());
+        let active_path = active.path().to_owned();
+        std::fs::write(active_path.join("ScribbleCap.png"), b"active").unwrap();
+        let completed = files.retain(tempfile::tempdir().unwrap());
+        let completed_path = completed.path().to_owned();
+        drop(completed);
+        for _ in 0..5 {
+            files.retain(tempfile::tempdir().unwrap());
+        }
+        assert_eq!(files.0.len(), 5);
+        assert!(!completed_path.exists());
+        assert_eq!(
+            std::fs::read(active_path.join("ScribbleCap.png")).unwrap(),
+            b"active"
+        );
+        drop(active);
+        assert!(!active_path.exists());
+        let newest: Vec<_> = files.0.iter().map(|d| d.path().to_owned()).collect();
+        assert!(newest.iter().all(|path| path.exists()));
+        files.clear();
+        assert!(newest.iter().all(|path| !path.exists()));
+    }
+    #[test]
+    fn native_gesture_ids_survive_webview_reload_and_stale_cancellation() {
+        let state = ShareState::default();
+        let before_reload = state.begin().unwrap();
+        state.cancel(before_reload);
+        assert!(state.is_cancelled(before_reload));
+        // A new frontend asks the same Rust state for its next gesture.
+        let after_reload = state.begin().unwrap();
+        assert!(after_reload > before_reload);
+        state.cancel(before_reload);
+        assert!(!state.is_cancelled(after_reload));
+        state.cancel(u32::MAX); // Unissued IDs cannot poison future gestures.
+        assert!(!state.is_cancelled(after_reload));
+        state.cancel(after_reload);
+        assert!(state.is_cancelled(after_reload));
+        assert!(state.is_cancelled(0));
+    }
     fn annotated_document() -> scribblecap_core::Document {
         use scribblecap_core::{Color, Document, Element, ElementId, Line, Point, Shape, Size};
         let mut document = Document::new(Size::new(8.0, 8.0));

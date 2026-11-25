@@ -55,6 +55,11 @@ Legend: `[ ]` todo · `[~]` in progress (put your branch name) · `[x]` done
 
 ## First release scope
 
+- [x] **Output and agent-check follow-ups (#5, #13, #14).** Document sandbox-safe
+  pnpm runtime locks; retain five recent drag files while pinning active drags;
+  allocate drag gesture IDs in Rust across page reloads; send output/transform
+  pixels in binary request bodies; run full CI for crate READMEs.
+
 v1 handles **raster images only**: PNG, JPEG, WebP, TIFF, BMP, GIF (first frame).
 HEIF/AVIF, SVG and PDF follow after the first release (M6).
 

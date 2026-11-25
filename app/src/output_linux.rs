@@ -4,7 +4,11 @@
 use gtk::{gdk, glib::SignalHandlerId, prelude::*};
 use std::{cell::RefCell, path::Path, rc::Rc};
 
-pub fn start(window: &gtk::ApplicationWindow, path: &Path) -> Result<(), String> {
+pub fn start(
+    window: &gtk::ApplicationWindow,
+    path: &Path,
+    finished: impl Fn() + 'static,
+) -> Result<(), String> {
     let uri = url::Url::from_file_path(path)
         .map_err(|()| "The shared file path is invalid.")?
         .to_string();
@@ -17,6 +21,7 @@ pub fn start(window: &gtk::ApplicationWindow, path: &Path) -> Result<(), String>
     handlers.borrow_mut().push(data);
     let cleanup = handlers.clone();
     let end = window.connect_drag_end(move |window, _| {
+        finished();
         for handler in cleanup.borrow_mut().drain(..) {
             window.disconnect(handler);
         }
