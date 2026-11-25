@@ -7,6 +7,11 @@
   import PrivacyControls from './lib/PrivacyControls.svelte';
   import StyleControls from './lib/StyleControls.svelte';
   import CanvasControls from './lib/CanvasControls.svelte';
+  import CaptureMenu from './lib/CaptureMenu.svelte';
+  import SettingsPanel from './lib/SettingsPanel.svelte';
+  import UnsavedPrompt from './lib/UnsavedPrompt.svelte';
+  import * as capture from './lib/capture';
+  import { createDirtyTracker } from './lib/dirty';
   import { loadCore, type Core, type Pt, type Shape, type WirePath } from './lib/core';
   import type { LoadedImage } from './lib/image-packet';
   import { create, dragHandle, handles, topmostAt, translate, DEFAULT_STYLE, restyle, resizeShape, boxFrom, TOOL_KEYS, type Handle, type Tool } from './lib/shapes';
@@ -70,6 +75,12 @@
   let hovering = $state(false);
   let canUndo = $state(false);
   let canRedo = $state(false);
+  // Unsaved work: any change since the last load or Save (see lib/dirty.ts).
+  const tracker = createDirtyTracker();
+  let dirty = $state(false);
+  let prompt = $state.raw<((choice: 'save' | 'discard' | 'cancel') => void) | null>(null);
+  let settingsOpen = $state(false);
+  const syncDirty = () => { dirty = tracker.dirty; };
   const paths2d = new WeakMap<WirePath, Path2D>();
   const zoomLabel = $derived(view.scale * 100 < 1 ? `${(view.scale * 100).toPrecision(2)}%` : `${Math.round(view.scale * 100)}%`);
   const transformSource = $derived(image && items.length ? { ...image, editable: true } : image);
@@ -79,7 +90,8 @@
       : gesture?.kind === 'move' || (tool === 'select' && hovering) ? 'move'
       : tool === 'select' ? 'default' : 'crosshair');
 
-  async function load(action: () => Promise<LoadedImage | null>) {
+  /** `changed`: the loaded image is an edit of the open one (a canvas transform), not a new document. */
+  async function load(action: () => Promise<LoadedImage | null>, changed = false) {
     if (busy) return;
     busy = true; error = '';
     try {
@@ -93,6 +105,7 @@
       context.putImageData(new ImageData(next.pixels, next.width, next.height), 0, 0);
       core.reset(next.width, next.height);
       items = []; selected = null; gesture = null; canUndo = false; canRedo = false;
+      tracker.reset(); if (changed) tracker.changed(); syncDirty();
       source = nextSource; image = next;
       view = fitViewport(next, area); fitted = true;
       document.title = `${next.name} — ScribbleCap`;
@@ -122,10 +135,26 @@
       report(cause);
     } finally { if (alive) busy = false; }
   }
-  function openImage() {
-    if (bridge.desktop) void load(bridge.openImage);
-    else fileInput.click();
+  /** Resolves true when the open image may be replaced: nothing unsaved, or the person chose Save… (and it saved) or Discard. */
+  async function confirmReplace(): Promise<boolean> {
+    if (!dirty) return true;
+    if (prompt) return false;
+    const choice = await new Promise<'save' | 'discard' | 'cancel'>(resolve => { prompt = resolve; });
+    prompt = null;
+    if (choice === 'save') return saveImage();
+    return choice === 'discard';
   }
+  /** Ask first, then replace the open image with whatever `action` brings in. */
+  async function replaceWith(action: () => Promise<LoadedImage | null>) {
+    if (busy || !(await confirmReplace()) || !alive) return;
+    await load(action);
+  }
+  function openImage() {
+    if (bridge.desktop) void replaceWith(bridge.openImage);
+    else void confirmReplace().then(ok => { if (ok && alive) fileInput.click(); });
+  }
+  function startCapture(mode: capture.CaptureMode) { void replaceWith(() => capture.captureImage(mode)); }
+  function startTimer(seconds: number) { void replaceWith(() => capture.captureTimer(seconds)); }
   async function clipboardImage() {
     if (bridge.desktop) return bridge.pasteImage();
     if (!navigator.clipboard?.read) throw new Error('Use your browser’s Paste command after copying an image.');
@@ -140,36 +169,42 @@
     if (bridge.desktop || busy) return;
     const files = Array.from(event.dataTransfer?.files ?? []);
     if (files.length !== 1) { error = 'Drop one image at a time.'; return; }
-    void load(() => bridge.browserImage(files[0], files[0].name));
+    void replaceWith(() => bridge.browserImage(files[0], files[0].name));
   }
-  function pasteImage() { void load(clipboardImage); }
+  function pasteImage() { void replaceWith(clipboardImage); }
   function onPaste(event: ClipboardEvent) {
     if (editableTarget(event.target)) return;
     event.preventDefault();
     if (bridge.desktop) pasteImage();
     else {
       const file = Array.from(event.clipboardData?.files ?? []).find(file => file.type.startsWith('image/'));
-      if (file) void load(() => bridge.browserImage(file, 'Clipboard image'));
+      if (file) void replaceWith(() => bridge.browserImage(file, 'Clipboard image'));
       else error = 'There is no image on the clipboard. Copy an image and try again.';
     }
   }
-  async function output(action: (current: LoadedImage, document: string) => Promise<void>) {
-    if (!image || !core || busy || gesture) return;
+  /** Runs a share or save action; true when it ran without failing. */
+  async function output(action: (current: LoadedImage, document: string) => Promise<void>): Promise<boolean> {
+    if (!image || !core || busy || gesture) return false;
     busy = true; error = ''; outputStatus = '';
     try {
       if (!bridge.desktop) throw new Error('Image sharing and saving are available in the desktop app.');
       await action(image, core.document());
-    } catch (cause) { if (alive) report(cause); }
+      return true;
+    } catch (cause) { if (alive) report(cause); return false; }
     finally { if (alive) busy = false; }
   }
   function copyImage() { void output(async (image, document) => { await bridge.copyImage(image, document); if (alive) outputStatus = 'Image copied'; }); }
-  function saveImage(saveAs = false, flat = false) {
-    void output(async (current, document) => {
+  /** True only when a file was written; a cancelled dialog or a failure is false. Export is not a Save. */
+  async function saveImage(saveAs = false, flat = false): Promise<boolean> {
+    let saved = false;
+    await output(async (current, document) => {
       const name = await bridge.saveImage(current, document, saveAs, flat);
       if (!name || !alive) return;
+      saved = true;
       outputStatus = flat ? `Exported ${name}` : `Saved ${name}`;
-      if (!flat) { image = { ...current, name }; window.document.title = `${name} — ScribbleCap`; }
+      if (!flat) { image = { ...current, name }; window.document.title = `${name} — ScribbleCap`; tracker.saved(); syncDirty(); }
     });
+    return saved && !flat;
   }
   function dragImage() {
     const current = { id: null as number | null, cancelled: false };
@@ -216,7 +251,11 @@
   /** End an undoable step. Every finished edit calls this; unchanged steps are dropped. */
   function commit() {
     if (!core) return;
-    try { ({ canUndo, canRedo } = core.commit()); } catch (cause) { report(cause); }
+    try {
+      const result = core.commit();
+      ({ canUndo, canRedo } = result);
+      if (result.changed) { tracker.step(); syncDirty(); }
+    } catch (cause) { report(cause); }
   }
   async function travel(direction: 'undo' | 'redo') {
     if (!core || !image || gesture || busy) return;
@@ -235,6 +274,8 @@
         source = rasterCanvas(next); image = next;
       }
       ({ canUndo, canRedo } = restored); items = restored.elements;
+      if (direction === 'undo') tracker.undo(); else tracker.redo();
+      syncDirty();
       outputStatus = direction === 'undo' && backgroundChanged
         ? 'Undo restored earlier background pixels. Save/export/copy include them; redo the privacy edit before sharing the cleaned version.'
         : `${direction === 'undo' ? 'Undid' : 'Redid'} edit. ${items.length} annotations`;
@@ -314,7 +355,7 @@
       if (key === 'o' && !event.repeat) openImage();
       if (key === 'v' && !event.repeat) pasteImage();
       if (key === 'c' && !event.repeat) copyImage();
-      if (key === 's' && !event.repeat) saveImage(event.shiftKey);
+      if (key === 's' && !event.repeat) void saveImage(event.shiftKey);
       if (key === '+' || key === '=') zoom(1.25);
       if (key === '-') zoom(0.8);
       if (key === '0') fit();
@@ -433,15 +474,24 @@
     let unlisten: (() => void) | undefined;
     let unmenu: (() => void) | undefined;
     let mounted = true;
+    const stops: (() => void)[] = [];
     if (bridge.desktop) {
       void listen<string>('shell-menu', ({ payload }) => {
         if (editableTarget(document.activeElement) && ['undo','redo','copy','paste'].includes(payload)) { document.execCommand(payload); return; }
         const actions: Record<string, () => void> = { open: openImage, paste: pasteImage, copy: copyImage, save: () => saveImage(), 'save-as': () => saveImage(true), export: () => saveImage(true,true), undo: () => travel('undo'), redo: () => travel('redo'), fit, actual, 'zoom-in': () => zoom(1.25), 'zoom-out': () => zoom(.8) };
         actions[payload]?.();
       }).then(stop => { if (mounted) unmenu = stop; else stop(); }).catch(report);
-      void listen('shell-file-drop', () => { void load(bridge.droppedImage); }).then(stop => {
+      void listen('shell-file-drop', () => { void replaceWith(bridge.droppedImage); }).then(stop => {
         if (mounted) unlisten = stop; else stop();
       }).catch(cause => { if (alive) error = String(cause); });
+      // The capture's image is fetched from Rust once the overlays finish (M4-5).
+      const subscribe = (name: string, handler: (payload: unknown) => void) => {
+        void listen(name, event => handler(event.payload)).then(stop => {
+          if (mounted) stops.push(stop); else stop();
+        }).catch(cause => { if (alive) error = String(cause); });
+      };
+      subscribe('capture-ready', () => { void load(capture.captureResult); });
+      subscribe('capture-save-failed', message => { error = String(message); });
     }
     ratio = window.devicePixelRatio || 1;
     const observer = new ResizeObserver(entries => {
@@ -456,7 +506,7 @@
     const scheme = window.matchMedia?.('(prefers-color-scheme: dark)');
     const onScheme = () => { theme++; };
     scheme?.addEventListener?.('change', onScheme);
-    return () => { mounted = false; unlisten?.(); unmenu?.(); observer.disconnect(); scheme?.removeEventListener?.('change', onScheme); };
+    return () => { mounted = false; unlisten?.(); unmenu?.(); stops.forEach(stop => stop()); observer.disconnect(); scheme?.removeEventListener?.('change', onScheme); };
   });
   onDestroy(() => { alive = false; cancelShare(); });
 
@@ -548,7 +598,7 @@
 <svelte:window ondrop={onDrop} ondragover={(event) => event.preventDefault()} onkeydown={onKey} onkeyup={onKeyUp} onpaste={onPaste} onblur={() => spaceHeld = false} onpointerup={cancelShare} onpointercancel={cancelShare} />
 <main aria-busy={busy} class:mac={mac && bridge.desktop}>
   <header class="titlebar" data-tauri-drag-region>
-    <!-- Capture (M4-5) takes this place; until then Open and Paste sit here. -->
+    {#if bridge.desktop}<CaptureMenu {busy} capture={startCapture} timer={startTimer} settings={() => settingsOpen = true} />{/if}
     <div class="input-actions">
       <button class="quiet" onclick={openImage} disabled={busy} title={`Open image (${mod}O)`}>Open image</button>
       <button class="quiet" onclick={pasteImage} disabled={busy} title={`Paste image (${mod}V)`}>Paste image</button>
@@ -561,7 +611,7 @@
         <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 14l5-5-5-5M20 9H10a6 6 0 000 12h3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
       </button>
     </div>
-    <CanvasControls image={transformSource} {busy} {load} />
+    <CanvasControls image={transformSource} {busy} load={(action) => load(action, true)} />
     <div class="tools" role="toolbar" tabindex="-1" aria-label="Tools" onkeydown={toolbarKey}>
       {#each TOOLS as t (t.tool)}
         <button class="tool" tabindex={tool === t.tool ? 0 : -1} aria-keyshortcuts={t.key} aria-label={t.label} aria-pressed={tool === t.tool} title={`${t.label} (${t.key})`} disabled={!image || busy} onclick={() => chooseTool(t.tool)}>
@@ -624,6 +674,8 @@
     <pre>{fontLicense}</pre>
     <form method="dialog"><button>Close notices</button></form>
   </dialog>
+  {#if prompt}<UnsavedPrompt choose={prompt} />{/if}
+  {#if settingsOpen}<SettingsPanel close={() => settingsOpen = false} />{/if}
   <input class="file-input" bind:this={fileInput} type="file" accept="image/png,image/jpeg,image/webp,image/tiff,image/bmp,image/gif" aria-label="Choose an image" onchange={() => { const file = fileInput.files?.[0]; if (file) void load(() => bridge.browserImage(file, file.name)); fileInput.value = ''; }} />
 </main>
 
