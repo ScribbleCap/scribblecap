@@ -244,7 +244,7 @@ fn apply_with_budget(
         + baseline_weight
         + snapshot.weight();
     if bytes > budget {
-        return Err("Privacy undo history reached its 512 MiB resource limit. Save and reopen the current image to start a new session.".into());
+        return Err("Privacy undo history reached its 512 MiB resource limit. Save the current image, then reopen the saved file to clear session history and continue privacy editing.".into());
     }
     let packet = snapshot.packet(revision)?;
     if history.snapshots.is_empty() {
@@ -381,16 +381,15 @@ mod tests {
         apply(&mut history, &mut session, source(), metadata(0, "redact")).unwrap();
         let current = history.snapshots[&1].source.clone();
         let before = history.snapshots.len();
-        assert!(
-            apply_with_budget(
-                &mut history,
-                &mut session,
-                current,
-                metadata(1, "pixelate"),
-                1
-            )
-            .is_err()
-        );
+        let error = apply_with_budget(
+            &mut history,
+            &mut session,
+            current,
+            metadata(1, "pixelate"),
+            1,
+        )
+        .unwrap_err();
+        assert!(error.contains("Save the current image, then reopen the saved file"));
         assert_eq!(history.current, 1);
         assert_eq!(history.snapshots.len(), before);
         restore(&mut history, &mut session, 0).unwrap();

@@ -235,7 +235,9 @@
         source = rasterCanvas(next); image = next;
       }
       ({ canUndo, canRedo } = restored); items = restored.elements;
-      outputStatus = `${direction === 'undo' ? 'Undid' : 'Redid'} edit. ${items.length} annotations`;
+      outputStatus = direction === 'undo' && backgroundChanged
+        ? 'Undo restored earlier background pixels. Save/export/copy include them; redo the privacy edit before sharing the cleaned version.'
+        : `${direction === 'undo' ? 'Undid' : 'Redid'} edit. ${items.length} annotations`;
       if (!items.some(item => item.id === selected)) selected = null;
     } catch (cause) {
       if (backgroundChanged) await bridge.restorePrivacy(previousRevision).catch(report);
@@ -633,7 +635,7 @@
   .share-actions { position: relative; margin-left: auto; }
   .share-actions summary { cursor: pointer; padding: .5rem; }
   .share-actions > div { position: absolute; top: 100%; right: 0; z-index: 5; display: grid; gap: .4rem; min-width: 9rem; padding: .5rem; background: var(--surface); border: 1px solid var(--line); border-radius: .5rem; }
-  .output-status { position: absolute; z-index: 4; bottom: 1rem; left: 1rem; background: var(--surface); padding: .4rem .7rem; border-radius: .4rem; }
+  .output-status { position: absolute; z-index: 4; bottom: 1rem; left: 1rem; max-width: calc(100% - 2rem); background: var(--surface); padding: .4rem .7rem; border-radius: .4rem; }
   .drag-out { position: absolute; z-index: 3; display: flex; align-items: center; gap: .4rem; padding: .2rem .5rem; cursor: grab; box-shadow: 0 2px 10px #0003; }
   .drag-out img { width: 40px; height: 28px; object-fit: contain; }
 </style>

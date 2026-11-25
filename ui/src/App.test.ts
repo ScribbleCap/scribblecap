@@ -239,10 +239,12 @@ describe('annotation tools', () => {
     await waitFor(() => expect((screen.getByRole('button', { name: 'Undo' }) as HTMLButtonElement).disabled).toBe(false));
     await fireEvent.keyDown(window,{key:'z',ctrlKey:true});
     await waitFor(() => expect(bridge.restorePrivacy).toHaveBeenCalledWith(0));
+    await waitFor(() => expect(screen.getByText(/Undo restored earlier background pixels/)).toBeTruthy());
     expect(screen.getByText('Annotations (1)')).toBeTruthy();
     await waitFor(() => expect((screen.getByRole('button', { name: 'Redo' }) as HTMLButtonElement).disabled).toBe(false));
     await fireEvent.keyDown(window,{key:'z',ctrlKey:true,shiftKey:true});
     await waitFor(() => expect(bridge.restorePrivacy).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(screen.queryByText(/Undo restored earlier background pixels/)).toBeNull());
     await fireEvent.click(screen.getByRole('button', { name: '1. arrow' }));
     await fireEvent.keyDown(viewport,{key:'ArrowRight'}); await fireEvent.keyUp(viewport,{key:'ArrowRight'});
     await fireEvent.click(screen.getByRole('button', { name: 'Copy image' }));

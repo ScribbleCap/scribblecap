@@ -27,7 +27,10 @@ previous backgrounds in memory, with a 512 MiB pixel/encoded-resource history bu
 an operation exceeding it fails without changing the current state. Saves, exports,
 copy and drag contain only the active background, never older snapshots. Undoing
 redaction restores original pixels as the current image: redo the privacy edit
-before saving or sharing the cleaned version. Starting a new document clears history.
+before saving or sharing the cleaned version. A visible, screen-reader-announced
+status note after undoing a background edit explains this. Starting a new document
+clears history. The history-limit error says to save the current image and reopen
+the saved file to continue privacy editing.
 Old disk files, clipboard images and previous exports are unchanged.
 
 See decision 0017, which supersedes the flatten-and-clear policy in decision 0015.
