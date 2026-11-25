@@ -13,7 +13,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    uses: ./.github/workflows/change-scope.yml
+
   check:
+    needs: changes
+    if: ${{ !cancelled() }}
     name: ${{ matrix.platform }}
     runs-on: ${{ matrix.runner }}
     strategy:
@@ -33,11 +38,20 @@ jobs:
       CARGO_TERM_COLOR: always
 
     steps:
+      - name: Require successful change detection
+        if: needs.changes.result != 'success'
+        run: exit 1
+
+      - name: Documentation-only change
+        if: needs.changes.outputs.code == 'false'
+        run: echo 'Documentation-only change; build and tests are not needed.'
+
       - name: Check out repository
+        if: needs.changes.outputs.code == 'true'
         uses: actions/checkout@v7
 
       - name: Install Linux system dependencies
-        if: runner.os == 'Linux'
+        if: needs.changes.outputs.code == 'true' && runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends \
@@ -46,24 +60,29 @@ jobs:
 
       # Before the UI steps: they build the core library for WebAssembly (decision 0011).
       - name: Install pinned Rust toolchain (with the wasm32 target)
+        if: needs.changes.outputs.code == 'true'
         run: rustup toolchain install
 
       - name: Cache Rust dependencies and build output
+        if: needs.changes.outputs.code == 'true'
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
 
       - name: Install pinned Node before bootstrapping pnpm
+        if: needs.changes.outputs.code == 'true'
         uses: actions/setup-node@v7
         with:
           node-version-file: ui/.node-version
           package-manager-cache: false
 
       - name: Install pnpm from the UI packageManager field
+        if: needs.changes.outputs.code == 'true'
         uses: pnpm/action-setup@v6
         with:
           package_json_file: ui/package.json
           run_install: false
 
       - name: Install Node and cache pnpm dependencies
+        if: needs.changes.outputs.code == 'true'
         uses: actions/setup-node@v7
         with:
           node-version-file: ui/.node-version
@@ -71,22 +90,33 @@ jobs:
           cache-dependency-path: ui/pnpm-lock.yaml
 
       - name: Install UI dependencies
+        if: needs.changes.outputs.code == 'true'
         run: pnpm --dir ui install --frozen-lockfile
 
+      - name: Test change detection
+        if: needs.changes.outputs.code == 'true' && runner.os == 'Linux'
+        run: node --test .github/scripts/change-scope.test.cjs
+
       - name: Lint UI
+        if: needs.changes.outputs.code == 'true'
         run: pnpm --dir ui lint
 
       - name: Test UI
+        if: needs.changes.outputs.code == 'true'
         run: pnpm --dir ui test
 
       - name: Build UI for the Tauri app
+        if: needs.changes.outputs.code == 'true'
         run: pnpm --dir ui build
 
       - name: Check Rust formatting
+        if: needs.changes.outputs.code == 'true'
         run: cargo fmt --all -- --check
 
       - name: Lint Rust
+        if: needs.changes.outputs.code == 'true'
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
       - name: Test Rust
+        if: needs.changes.outputs.code == 'true'
         run: cargo test --workspace --locked
