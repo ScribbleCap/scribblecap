@@ -13,6 +13,7 @@ mod output;
 mod output_linux;
 mod pixel_request;
 mod privacy;
+mod settings;
 mod shell;
 
 use tauri::{Emitter, Manager};
@@ -24,6 +25,7 @@ fn main() {
         .manage(privacy::PrivacyHistory::default())
         .manage(output::ShareState::default())
         .setup(|app| {
+            app.manage(settings::initial(app.handle()));
             menus::install(app)?;
             Ok(())
         })
@@ -48,7 +50,10 @@ fn main() {
             output::shell_save_image,
             output::shell_drag_image,
             output::shell_begin_drag,
-            output::shell_cancel_drag
+            output::shell_cancel_drag,
+            settings::shell_get_settings,
+            settings::shell_set_auto_save,
+            settings::shell_choose_capture_folder
         ])
         .build(tauri::generate_context!())
         .expect("error while building ScribbleCap")

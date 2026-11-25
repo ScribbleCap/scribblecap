@@ -237,7 +237,7 @@ fn with_default_extension(path: std::path::PathBuf) -> std::path::PathBuf {
     }
 }
 
-fn atomic_save(path: &Path, bytes: &[u8]) -> Result<(), String> {
+pub(crate) fn atomic_save(path: &Path, bytes: &[u8]) -> Result<(), String> {
     let parent = path.parent().ok_or("The save folder is unavailable.")?;
     let mut temporary = tempfile::NamedTempFile::new_in(parent)
         .map_err(|e| format!("The save folder could not be written: {e}"))?;
