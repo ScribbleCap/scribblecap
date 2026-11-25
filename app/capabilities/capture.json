@@ -1,0 +1,17 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "capture",
+  "description": "Permissions for the capture overlays and the countdown badge",
+  "windows": [
+    "capture-overlay-*",
+    "capture-countdown"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:allow-close",
+    "allow-shell-overlay-info",
+    "allow-shell-overlay-frame",
+    "allow-shell-overlay-select",
+    "allow-shell-capture-cancel"
+  ]
+}

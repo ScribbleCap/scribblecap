@@ -3,10 +3,13 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import App from './App.svelte';
 import { listen } from '@tauri-apps/api/event';
 import * as bridge from './lib/bridge';
+import * as capture from './lib/capture';
 import type { LoadedImage } from './lib/image-packet';
 
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
-vi.mock('./lib/bridge', () => ({ droppedImage: vi.fn(), saveImage: vi.fn(), copyImage: vi.fn(), dragImage: vi.fn(), restorePrivacy: vi.fn(), privacyImage: vi.fn(), beginDrag: vi.fn(), cancelDrag: vi.fn(), desktop: true, openImage: vi.fn(), pasteImage: vi.fn(), browserImage: vi.fn() }));
+const platform = vi.hoisted(() => ({ desktop: true }));
+vi.mock('./lib/bridge', () => ({ droppedImage: vi.fn(), saveImage: vi.fn(), copyImage: vi.fn(), dragImage: vi.fn(), restorePrivacy: vi.fn(), privacyImage: vi.fn(), beginDrag: vi.fn(), cancelDrag: vi.fn(), get desktop() { return platform.desktop; }, openImage: vi.fn(), pasteImage: vi.fn(), browserImage: vi.fn() }));
+vi.mock('./lib/capture', () => ({ captureState: vi.fn(), captureImage: vi.fn(), captureTimer: vi.fn(), captureResult: vi.fn(), getSettings: vi.fn(), setAutoSave: vi.fn(), chooseCaptureFolder: vi.fn() }));
 // The real core WebAssembly module (built by `pnpm test`), loaded from disk; a fresh
 // instance per test keeps documents independent.
 vi.mock('./lib/core', async original => {
@@ -22,9 +25,16 @@ const transform = vi.fn();
 const viewTransform = () => transform.mock.calls.at(-2);
 let resize: ResizeObserverCallback | undefined;
 beforeEach(() => {
+  platform.desktop = true;
   vi.mocked(bridge.openImage).mockReset(); vi.mocked(bridge.pasteImage).mockReset(); transform.mockReset();
   vi.mocked(listen).mockReset().mockResolvedValue(vi.fn());
   vi.mocked(bridge.droppedImage).mockReset();
+  vi.mocked(capture.captureState).mockReset().mockResolvedValue({ wayland: false, previous: true });
+  vi.mocked(capture.captureImage).mockReset().mockResolvedValue(null);
+  vi.mocked(capture.captureTimer).mockReset().mockResolvedValue(null);
+  vi.mocked(capture.captureResult).mockReset();
+  vi.mocked(capture.getSettings).mockReset().mockResolvedValue({ captureFolder: null, autoSave: false });
+  vi.mocked(capture.chooseCaptureFolder).mockReset();
   vi.mocked(bridge.saveImage).mockReset();
   vi.mocked(bridge.privacyImage).mockReset(); vi.mocked(bridge.restorePrivacy).mockReset();
   vi.mocked(bridge.copyImage).mockReset().mockResolvedValue();
@@ -250,6 +260,37 @@ describe('annotation tools', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'Copy image' }));
     expect(JSON.parse(vi.mocked(bridge.copyImage).mock.calls.at(-1)![1]).elements).toHaveLength(1);
   });
+  it('a privacy edit is unsaved work; undoing it back to the saved state is clean (M4-5 integration)', async () => {
+    await openBig();
+    const large = { name: 'test.png', width: 400, height: 200, pixels: new Uint8ClampedArray(400*200*4) };
+    vi.mocked(bridge.privacyImage).mockResolvedValue({ ...large, privacyRevision: 1 });
+    vi.mocked(bridge.restorePrivacy).mockImplementation(async revision => ({ ...large, privacyRevision: revision }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Apply privacy edit' }));
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Undo' }) as HTMLButtonElement).disabled).toBe(false));
+    await fireEvent.click(screen.getByRole('button', { name: 'Capture' }));
+    expect(screen.getByRole('alertdialog')).toBeTruthy();
+    await fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(bridge.restorePrivacy).toHaveBeenCalledWith(0));
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Redo' }) as HTMLButtonElement).disabled).toBe(false));
+    await fireEvent.click(screen.getByRole('button', { name: 'Capture' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    await waitFor(() => expect(capture.captureImage).toHaveBeenCalledWith('region'));
+    // Redo brings the privacy edit back: unsaved again.
+    await fireEvent.click(screen.getByRole('button', { name: 'Redo' }));
+    await waitFor(() => expect(bridge.restorePrivacy).toHaveBeenCalledWith(1));
+    await fireEvent.click(screen.getByRole('button', { name: 'Capture' }));
+    expect(screen.getByRole('alertdialog')).toBeTruthy();
+  });
+  it('privacy shortcuts are inert while the capture settings dialog is open (M4-5 integration)', async () => {
+    await openBig();
+    await fireEvent.click(screen.getByRole('button', { name: 'Capture options' }));
+    await fireEvent.click(await screen.findByRole('menuitem', { name: 'Settings…' }));
+    await fireEvent.keyDown(window, { key: 'p' });
+    await fireEvent.keyDown(window, { key: 'x' });
+    expect(screen.queryByText(/drag a region to replace background pixels/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Pixelate' }).getAttribute('aria-pressed')).toBe('false');
+  });
   it('navigates tools with the keyboard and preserves native text-field keys', async () => {
     await openBig();
     const arrow = screen.getByRole('button', { name: 'Arrow' });
@@ -371,6 +412,7 @@ describe('annotation tools', () => {
     await drag(viewport, [220, 220], [320, 260]);
     expect((screen.getByRole('button', { name: 'Undo' }) as HTMLButtonElement).disabled).toBe(false);
     await fireEvent.click(screen.getByRole('button', { name: 'Open image' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Discard' })); // unsaved annotations: M4-5 prompt
     await waitFor(() => expect((screen.getByRole('button', { name: 'Undo' }) as HTMLButtonElement).disabled).toBe(true));
   });
   it('pans with Space held instead of drawing', async () => {
@@ -397,7 +439,7 @@ describe('native file drops', () => {
     await waitFor(() => expect(screen.getByLabelText('dropped.png, 2 by 1 pixels')).toBeTruthy());
     expect(bridge.droppedImage).toHaveBeenCalledWith();
     mounted.unmount();
-    expect(stop).toHaveBeenCalledTimes(2);
+    expect(stop).toHaveBeenCalledTimes(4); // menu, drop, capture-ready, capture-save-failed
   });
   it('keeps the current image when a native drop is rejected', async () => {
     vi.mocked(bridge.openImage).mockResolvedValue(image());
@@ -476,5 +518,244 @@ describe('file output with the real editing core', () => {
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Disk full'));
     expect(JSON.parse(vi.mocked(bridge.saveImage).mock.calls[1][1]).elements).toHaveLength(1);
     expect(screen.getByLabelText('test.png, 2 by 1 pixels')).toBeTruthy();
+  });
+});
+
+describe('capture from the editor', () => {
+  const PROMPT = ['Save…', 'Discard', 'Cancel'];
+  async function openImage() {
+    vi.mocked(bridge.openImage).mockResolvedValueOnce(image());
+    await fireEvent.click(screen.getByRole('button', { name: 'Open image' }));
+    await waitFor(() => expect(screen.getByLabelText('test.png, 2 by 1 pixels')).toBeTruthy());
+    const viewport = screen.getByRole('region', { name: 'Image viewport' });
+    Object.assign(viewport, { setPointerCapture: vi.fn(), hasPointerCapture: () => true, releasePointerCapture: vi.fn() });
+    return viewport;
+  }
+  async function draw(viewport: HTMLElement) {
+    await fireEvent.pointerDown(viewport, { pointerId: 10, button: 0, isPrimary: true, clientX: 400, clientY: 300 });
+    await fireEvent.pointerMove(viewport, { pointerId: 10, isPrimary: true, clientX: 450, clientY: 320 });
+    await fireEvent.pointerUp(viewport, { pointerId: 10 });
+  }
+  const promptButtons = () => Array.from(screen.getByRole('alertdialog').querySelectorAll('button')).map(b => b.textContent?.trim());
+  const clickCapture = () => fireEvent.click(screen.getByRole('button', { name: 'Capture' }));
+  const dirtyDoc = async () => { render(App); const viewport = await openImage(); await draw(viewport); };
+
+  it('captures without asking when nothing is unsaved', async () => {
+    render(App);
+    await clickCapture();
+    await waitFor(() => expect(capture.captureImage).toHaveBeenCalledWith('region'));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
+  it('captures an untouched open image without asking', async () => {
+    render(App);
+    await openImage();
+    await clickCapture();
+    await waitFor(() => expect(capture.captureImage).toHaveBeenCalledWith('region'));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
+  it('asks Save/Discard/Cancel before replacing unsaved annotations', async () => {
+    await dirtyDoc();
+    await clickCapture();
+    expect(promptButtons()).toEqual(PROMPT);
+    expect(capture.captureImage).not.toHaveBeenCalled();
+    await fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(capture.captureImage).not.toHaveBeenCalled();
+    // the annotation is still there: undo is still possible
+    expect((screen.getByRole('button', { name: 'Undo' }) as HTMLButtonElement).disabled).toBe(false);
+    await clickCapture();
+    await fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    await waitFor(() => expect(capture.captureImage).toHaveBeenCalledWith('region'));
+  });
+  it('asks before a timer capture too, and only then starts the countdown', async () => {
+    await dirtyDoc();
+    await fireEvent.click(screen.getByRole('button', { name: 'Capture options' }));
+    await fireEvent.click(screen.getByRole('menuitem', { name: 'Timer' }));
+    await fireEvent.click(screen.getByRole('menuitem', { name: '5 s' }));
+    expect(capture.captureTimer).not.toHaveBeenCalled();
+    await fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    await waitFor(() => expect(capture.captureTimer).toHaveBeenCalledWith(5));
+  });
+  it('Save… captures only after a successful save', async () => {
+    vi.mocked(bridge.saveImage).mockResolvedValueOnce(null).mockResolvedValueOnce('test.png');
+    await dirtyDoc();
+    await clickCapture();
+    await fireEvent.click(screen.getByRole('button', { name: 'Save…' }));
+    await waitFor(() => expect(bridge.saveImage).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(capture.captureImage).not.toHaveBeenCalled();
+    await clickCapture();
+    await fireEvent.click(screen.getByRole('button', { name: 'Save…' }));
+    await waitFor(() => expect(capture.captureImage).toHaveBeenCalledWith('region'));
+    expect(bridge.saveImage).toHaveBeenCalledTimes(2);
+    // saved work no longer asks
+    await clickCapture();
+    await waitFor(() => expect(capture.captureImage).toHaveBeenCalledTimes(2));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
+  it('does not capture when Save… fails', async () => {
+    vi.mocked(bridge.saveImage).mockRejectedValueOnce(new Error('Disk full'));
+    await dirtyDoc();
+    await clickCapture();
+    await fireEvent.click(screen.getByRole('button', { name: 'Save…' }));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Disk full'));
+    expect(capture.captureImage).not.toHaveBeenCalled();
+  });
+  it('the same prompt guards Open, Paste and Drop', async () => {
+    await dirtyDoc();
+    const pasted = image('pasted.png');
+    vi.mocked(bridge.pasteImage).mockResolvedValue(pasted);
+    vi.mocked(bridge.droppedImage).mockResolvedValue(image('dropped.png'));
+    vi.mocked(bridge.openImage).mockResolvedValue(image('opened.png'));
+    const cases: [string, () => unknown, () => unknown][] = [
+      ['open', () => fireEvent.click(screen.getByRole('button', { name: 'Open image' })), () => bridge.openImage],
+      ['paste', () => fireEvent.click(screen.getByRole('button', { name: 'Paste image' })), () => bridge.pasteImage],
+      ['native drop', () => vi.mocked(listen).mock.calls.find(call => call[0] === 'shell-file-drop')![1]({ event: 'shell-file-drop', id: 0, payload: null }), () => bridge.droppedImage],
+    ];
+    vi.mocked(bridge.openImage).mockClear();
+    for (const [, act, fn] of cases) {
+      await act();
+      expect(promptButtons()).toEqual(PROMPT);
+      expect(vi.mocked(fn() as () => unknown)).not.toHaveBeenCalled();
+      await fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      expect(vi.mocked(fn() as () => unknown)).not.toHaveBeenCalled();
+    }
+    await cases[1][1]();
+    await fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    await waitFor(() => expect(screen.getByLabelText('pasted.png, 2 by 1 pixels')).toBeTruthy());
+  });
+  it('becomes clean again after undoing back to the saved state', async () => {
+    vi.mocked(bridge.saveImage).mockResolvedValue('test.png');
+    render(App);
+    const viewport = await openImage();
+    await draw(viewport);
+    await fireEvent.keyDown(window, { key: 's', ctrlKey: true });
+    await waitFor(() => expect(bridge.saveImage).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Saved'));
+    await fireEvent.keyDown(window, { key: 'z', ctrlKey: true });
+    await clickCapture();
+    expect(screen.getByRole('alertdialog')).toBeTruthy();
+    await fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await fireEvent.keyDown(window, { key: 'z', ctrlKey: true, shiftKey: true });
+    await clickCapture();
+    await waitFor(() => expect(capture.captureImage).toHaveBeenCalledOnce());
+  });
+  it('Export flat does not count as saving', async () => {
+    vi.mocked(bridge.saveImage).mockResolvedValue('flat.png');
+    await dirtyDoc();
+    await fireEvent.click(screen.getByText('Share'));
+    await fireEvent.click(screen.getByRole('button', { name: 'Export flat…' }));
+    await waitFor(() => expect(bridge.saveImage).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Exported'));
+    await clickCapture();
+    expect(screen.getByRole('alertdialog')).toBeTruthy();
+  });
+  it('loads the capture when capture-ready arrives', async () => {
+    vi.mocked(capture.captureResult).mockResolvedValue(image('Screenshot 2026-11-25 at 10.00.00.png'));
+    render(App);
+    await waitFor(() => expect(listen).toHaveBeenCalledWith('capture-ready', expect.any(Function)));
+    const handler = vi.mocked(listen).mock.calls.find(call => call[0] === 'capture-ready')![1];
+    handler({ event: 'capture-ready', id: 0, payload: null });
+    await waitFor(() => expect(screen.getByLabelText('Screenshot 2026-11-25 at 10.00.00.png, 2 by 1 pixels')).toBeTruthy());
+    expect(capture.captureResult).toHaveBeenCalledOnce();
+  });
+  it('shows an immediate capture result (Full screen) as the open image', async () => {
+    vi.mocked(capture.captureImage).mockResolvedValue(image('Screenshot.png'));
+    render(App);
+    await fireEvent.click(screen.getByRole('button', { name: 'Capture options' }));
+    await fireEvent.click(screen.getByRole('menuitem', { name: 'Full screen' }));
+    await waitFor(() => expect(capture.captureImage).toHaveBeenCalledWith('screen'));
+    await waitFor(() => expect(screen.getByLabelText('Screenshot.png, 2 by 1 pixels')).toBeTruthy());
+  });
+  it('keeps the image and shows a backend or permission error', async () => {
+    vi.mocked(capture.captureImage).mockRejectedValue(new Error('Screen capture needs permission. Allow ScribbleCap in System Settings → Privacy & Security → Screen & System Audio Recording, then try again.'));
+    render(App);
+    await openImage();
+    await clickCapture();
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('System Settings → Privacy & Security → Screen & System Audio Recording'));
+    expect(screen.getByLabelText('test.png, 2 by 1 pixels')).toBeTruthy();
+    vi.mocked(capture.captureImage).mockRejectedValue('A capture is already in progress.');
+    await clickCapture();
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('A capture is already in progress.'));
+  });
+  it('shows a failed capture auto-save while the capture stays open', async () => {
+    render(App);
+    await waitFor(() => expect(listen).toHaveBeenCalledWith('capture-save-failed', expect.any(Function)));
+    const handler = vi.mocked(listen).mock.calls.find(call => call[0] === 'capture-save-failed')![1];
+    handler({ event: 'capture-save-failed', id: 0, payload: 'The capture folder is full.' });
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('The capture folder is full.'));
+  });
+  it('keeps shortcuts, paste and drop inert while the prompt is open, and Escape cancels', async () => {
+    await dirtyDoc();
+    await clickCapture();
+    expect(screen.getByRole('alertdialog')).toBeTruthy();
+    await fireEvent.keyDown(window, { key: 'z', ctrlKey: true });
+    await fireEvent.keyDown(window, { key: 'Delete' });
+    await fireEvent.keyDown(window, { key: 'r' });
+    await fireEvent.keyDown(window, { key: 'v', ctrlKey: true });
+    await fireEvent.paste(window);
+    await fireEvent.drop(window);
+    vi.mocked(listen).mock.calls.find(call => call[0] === 'shell-file-drop')![1]({ event: 'shell-file-drop', id: 0, payload: null });
+    expect(bridge.pasteImage).not.toHaveBeenCalled();
+    expect(bridge.droppedImage).not.toHaveBeenCalled();
+    expect((screen.getByRole('button', { name: 'Undo' }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.getByRole('button', { name: 'Arrow' }).getAttribute('aria-pressed')).toBe('true');
+    await fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(capture.captureImage).not.toHaveBeenCalled();
+    expect((screen.getByRole('button', { name: 'Undo' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+  it('keeps shortcuts inert while settings are open', async () => {
+    await dirtyDoc();
+    await fireEvent.click(screen.getByRole('button', { name: 'Capture options' }));
+    await fireEvent.click(screen.getByRole('menuitem', { name: 'Settings…' }));
+    await fireEvent.keyDown(window, { key: 'z', ctrlKey: true });
+    await fireEvent.keyDown(window, { key: 'r' });
+    expect((screen.getByRole('button', { name: 'Undo' }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.getByRole('button', { name: 'Arrow' }).getAttribute('aria-pressed')).toBe('true');
+  });
+  it('keeps Tab inside the prompt', async () => {
+    await dirtyDoc();
+    await clickCapture();
+    const cancel = screen.getByRole('button', { name: 'Cancel' });
+    cancel.focus();
+    await fireEvent.keyDown(cancel, { key: 'Tab' });
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Save…' }));
+    await fireEvent.keyDown(screen.getByRole('button', { name: 'Save…' }), { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(cancel);
+  });
+  it('Discard and Cancel on the native drop path', async () => {
+    await dirtyDoc();
+    vi.mocked(bridge.droppedImage).mockResolvedValue(image('dropped.png'));
+    const drop = () => vi.mocked(listen).mock.calls.find(call => call[0] === 'shell-file-drop')![1]({ event: 'shell-file-drop', id: 0, payload: null });
+    drop();
+    await fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }));
+    expect(bridge.droppedImage).not.toHaveBeenCalled();
+    drop();
+    await fireEvent.click(await screen.findByRole('button', { name: 'Discard' }));
+    await waitFor(() => expect(screen.getByLabelText('dropped.png, 2 by 1 pixels')).toBeTruthy());
+  });
+  it('accepts a single dropped file in the browser', async () => {
+    platform.desktop = false;
+    render(App);
+    vi.mocked(bridge.browserImage).mockResolvedValue(image('first.png'));
+    const file = new File([new Uint8Array(1)], 'first.png', { type: 'image/png' });
+    await fireEvent.drop(window, { dataTransfer: { files: [file] } });
+    await waitFor(() => expect(screen.getByLabelText('first.png, 2 by 1 pixels')).toBeTruthy());
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
+  it('ignores drops while busy in the browser and rejects several files', async () => {
+    platform.desktop = false;
+    render(App);
+    const file = new File([new Uint8Array(1)], 'a.png');
+    await fireEvent.drop(window, { dataTransfer: { files: [file, file] } });
+    expect(screen.getByRole('alert').textContent).toContain('Drop one image at a time.');
+  });
+  it('opens the settings panel from the menu', async () => {
+    render(App);
+    await fireEvent.click(screen.getByRole('button', { name: 'Capture options' }));
+    await fireEvent.click(screen.getByRole('menuitem', { name: 'Settings…' }));
+    expect(screen.getByRole('dialog', { name: 'Settings' })).toBeTruthy();
+    expect((await screen.findByRole('switch', { name: 'Auto-save captures' }) as HTMLInputElement).checked).toBe(false);
   });
 });

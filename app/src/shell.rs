@@ -25,22 +25,35 @@ fn read_limited(reader: impl Read, limit: u64) -> Result<Vec<u8>, String> {
 }
 
 pub(crate) fn packet(name: &str, image: RasterImage) -> Result<Vec<u8>, String> {
-    if image.pixels().len() > MAX_IMAGE_BYTES {
+    packet_from(name, image.width(), image.height(), image.pixels())
+}
+
+/// `packet` from borrowed straight RGBA8 pixels (`width * height * 4` bytes).
+pub(crate) fn packet_from(
+    name: &str,
+    width: u32,
+    height: u32,
+    pixels: &[u8],
+) -> Result<Vec<u8>, String> {
+    if u64::from(width) * u64::from(height) * 4 != pixels.len() as u64 {
+        return Err("The image pixels are incomplete.".into());
+    }
+    if pixels.len() > MAX_IMAGE_BYTES {
         return Err("This image is too large to display (about 67 million pixels maximum).".into());
     }
     if name.len() > 65536 {
         return Err("The image filename is too long.".into());
     }
     let mut out = Vec::new();
-    out.try_reserve_exact(20 + name.len() + image.pixels().len())
+    out.try_reserve_exact(20 + name.len() + pixels.len())
         .map_err(|_| "There is not enough memory to open this image.".to_string())?;
     out.extend_from_slice(b"SCIM");
     out.extend_from_slice(&1u32.to_le_bytes());
-    out.extend_from_slice(&image.width().to_le_bytes());
-    out.extend_from_slice(&image.height().to_le_bytes());
+    out.extend_from_slice(&width.to_le_bytes());
+    out.extend_from_slice(&height.to_le_bytes());
     out.extend_from_slice(&(name.len() as u32).to_le_bytes());
     out.extend_from_slice(name.as_bytes());
-    out.extend_from_slice(image.pixels());
+    out.extend_from_slice(pixels);
     Ok(out)
 }
 
@@ -62,11 +75,13 @@ pub struct Session {
     pub editable: Option<EditableDocument>,
     pub preview: Option<RasterImage>,
     pub target: Option<PathBuf>,
+    /// Set for a capture taken in the app: its first Save goes to the capture folder.
+    pub capture_name: Option<String>,
 }
 #[derive(Default)]
 pub struct ImageSession(pub std::sync::Mutex<Session>);
 
-fn remember(
+pub(crate) fn remember(
     app: &AppHandle,
     editable: Option<EditableDocument>,
     preview: RasterImage,
@@ -80,6 +95,7 @@ fn remember(
         target: target.filter(|path| save_in_place(editable.is_some(), path)),
         editable,
         preview: Some(preview),
+        capture_name: None,
     };
     Ok(())
 }
@@ -113,7 +129,7 @@ fn read_image(path: &Path) -> Result<OpenedInput, String> {
     Ok((name, bytes, opened.editable, preview))
 }
 
-fn set_title(app: &AppHandle, name: &str) {
+pub(crate) fn set_title(app: &AppHandle, name: &str) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.set_title(&format!("{name} — ScribbleCap"));
     }

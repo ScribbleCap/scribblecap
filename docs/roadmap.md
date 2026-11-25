@@ -151,7 +151,13 @@ scheduled alongside the tasks below (D1–D3 and D6a can start now)._
   explicit IDs, enumeration and desktop-coordinate regions remain unsupported.
   Host tests and Linux cross-compilation cover the implementation; real Wayland
   desktop approval/cancellation checks remain pending. See [wayland-capture.md](wayland-capture.md).
-- [ ] **M4-5 Region/window picker overlay**, previous region, timed capture.
+- [~] **M4-5 Capture inside the app**: Capture button and menu (region, window, full
+  screen, previous region, timer), own selection overlay on macOS/Windows/X11,
+  portal capture plus crop in the editor on Wayland, capture folder, optional
+  auto-save, unsaved-work prompt. Automated tests pass; the manual desktop
+  checklist in [app-shell.md](app-shell.md#capture-m4-5) is still to be run
+  (mixed DPI, Windows and X11 overlay placement, Wayland portal, macOS permission).
+  See [decision 0016](decisions/0016-in-app-capture.md).
 - [ ] **M4-6 Global hotkey / tray icon**, `app capture` CLI command.
 
 ## M5 — v1 polish
