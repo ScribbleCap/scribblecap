@@ -691,7 +691,7 @@
   dialog { max-width: min(42rem, 92vw); max-height: 85vh; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: .6rem; }
   dialog pre { white-space: pre-wrap; font-size: 12px; }
   .compact-tools { display: none; }
-  @media (max-width: 1250px) { .tools { display: none; } .compact-tools { display: flex; gap: .3rem; align-items: center; } }
+  @media (max-width: 720px) { .tools { display: none; } .compact-tools { display: flex; gap: .3rem; align-items: center; } }
   .share-actions { position: relative; margin-left: auto; }
   .share-actions summary { cursor: pointer; padding: .5rem; }
   .share-actions > div { position: absolute; top: 100%; right: 0; z-index: 5; display: grid; gap: .4rem; min-width: 9rem; padding: .5rem; background: var(--surface); border: 1px solid var(--line); border-radius: .5rem; }

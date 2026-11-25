@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-shell-privacy-image"
+description = "Enables the shell_privacy_image command without any pre-configured scope."
+commands.allow = ["shell_privacy_image"]
+
+[[permission]]
+identifier = "deny-shell-privacy-image"
+description = "Denies the shell_privacy_image command without any pre-configured scope."
+commands.deny = ["shell_privacy_image"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-shell-overlay-select"
+description = "Enables the shell_overlay_select command without any pre-configured scope."
+commands.allow = ["shell_overlay_select"]
+
+[[permission]]
+identifier = "deny-shell-overlay-select"
+description = "Denies the shell_overlay_select command without any pre-configured scope."
+commands.deny = ["shell_overlay_select"]

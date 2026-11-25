@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-shell-copy-image"
+description = "Enables the shell_copy_image command without any pre-configured scope."
+commands.allow = ["shell_copy_image"]
+
+[[permission]]
+identifier = "deny-shell-copy-image"
+description = "Denies the shell_copy_image command without any pre-configured scope."
+commands.deny = ["shell_copy_image"]

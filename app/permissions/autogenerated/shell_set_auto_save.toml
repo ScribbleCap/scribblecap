@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-shell-set-auto-save"
+description = "Enables the shell_set_auto_save command without any pre-configured scope."
+commands.allow = ["shell_set_auto_save"]
+
+[[permission]]
+identifier = "deny-shell-set-auto-save"
+description = "Denies the shell_set_auto_save command without any pre-configured scope."
+commands.deny = ["shell_set_auto_save"]

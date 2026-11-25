@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-shell-capture-timer"
+description = "Enables the shell_capture_timer command without any pre-configured scope."
+commands.allow = ["shell_capture_timer"]
+
+[[permission]]
+identifier = "deny-shell-capture-timer"
+description = "Denies the shell_capture_timer command without any pre-configured scope."
+commands.deny = ["shell_capture_timer"]

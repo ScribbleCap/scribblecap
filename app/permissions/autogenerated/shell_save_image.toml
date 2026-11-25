@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-shell-save-image"
+description = "Enables the shell_save_image command without any pre-configured scope."
+commands.allow = ["shell_save_image"]
+
+[[permission]]
+identifier = "deny-shell-save-image"
+description = "Denies the shell_save_image command without any pre-configured scope."
+commands.deny = ["shell_save_image"]
