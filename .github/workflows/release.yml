@@ -1,0 +1,124 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      release-id: ${{ steps.release.outputs.result }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check tag matches workspace version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PY'
+          import os, tomllib
+          with open('Cargo.toml', 'rb') as source:
+              version = tomllib.load(source)['workspace']['package']['version']
+          if os.environ['RELEASE_TAG'] != f'v{version}':
+              raise SystemExit(f'Tag must be v{version}; update the workspace version before tagging.')
+          PY
+      - name: Create or reuse draft release
+        id: release
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const tag = context.ref.replace('refs/tags/', '');
+            const releases = await github.paginate(github.rest.repos.listReleases, { owner, repo, per_page: 100 });
+            const existing = releases.find(release => release.tag_name === tag);
+            if (existing) {
+              if (!existing.draft) throw new Error('Refusing to modify an already published release');
+              return existing.id;
+            }
+            const { data } = await github.rest.repos.createRelease({
+              owner, repo, tag_name: tag, name: `ScribbleCap ${tag}`, draft: true,
+              prerelease: tag.includes('-'),
+              body: 'Unsigned preview builds. macOS builds are not notarised and Gatekeeper may block them; Windows SmartScreen may warn about an unknown publisher. Review docs/releases.md for installation and validation before publishing.',
+            });
+            return data.id;
+
+  bundle:
+    needs: prepare
+    name: Package ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest
+            target: aarch64-apple-darwin
+            bundles: dmg
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+            bundles: dmg
+          - runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: msi
+          - runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            bundles: appimage,deb
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            libwebkit2gtk-4.1-dev build-essential curl wget file patchelf \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: ui/.node-version
+          package-manager-cache: false
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: ui/package.json
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: ui/.node-version
+          cache: pnpm
+          cache-dependency-path: ui/pnpm-lock.yaml
+      - name: Install pinned Rust toolchain and packaging target
+        run: |
+          rustup toolchain install
+          rustup target add '${{ matrix.target }}'
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: release-${{ matrix.target }}
+      - name: Install UI dependencies
+        run: pnpm --dir ui install --frozen-lockfile
+      - name: Build installers and upload to draft release
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # action-v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MACOSX_DEPLOYMENT_TARGET: '14.0'
+          # AppImage packaging runs without mounting FUSE on hosted runners.
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+        with:
+          projectPath: app
+          tauriScript: pnpm --dir ../ui tauri
+          releaseId: ${{ needs.prepare.outputs.release-id }}
+          tagName: ${{ github.ref_name }}
+          releaseDraft: true
+          # tauri build has no --locked option; cargo arguments go after `--`.
+          args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} -- --locked
