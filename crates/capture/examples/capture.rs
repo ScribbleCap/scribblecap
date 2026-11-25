@@ -8,8 +8,9 @@
 //! cargo run -p scribblecap-capture --example capture -- region <x> <y> <width> <height>
 //! ```
 //!
-//! Images are written to `target/capture/<what>.png`. Linux needs an X11 session
-//! (Wayland reports unsupported until roadmap M4-4). On macOS the terminal app needs
+//! Images are written to `target/capture/<what>.png`. Wayland supports `screen`
+//! without an ID through an interactive desktop portal (see docs/wayland-capture.md).
+//! On macOS the terminal app needs
 //! Screen Recording permission (System Settings → Privacy & Security → Screen & System
 //! Audio Recording); the first run asks for it.
 
@@ -32,12 +33,14 @@ fn main() -> ExitCode {
 fn run(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     let capturer = backend()?;
     if !capturer.has_permission() && !capturer.request_permission() {
-        return Err(
+        let message = if cfg!(target_os = "macos") {
             "screen capture permission not granted: allow your terminal in System \
-                    Settings → Privacy & Security → Screen & System Audio Recording, then \
-                    restart the terminal"
-                .into(),
-        );
+             Settings → Privacy & Security → Screen & System Audio Recording, then \
+             restart the terminal"
+        } else {
+            "screen capture permission not granted: check the desktop's screen capture privacy settings"
+        };
+        return Err(message.into());
     }
     let num = |i: usize| -> Result<f64, Box<dyn std::error::Error>> {
         Ok(args.get(i).ok_or("missing number")?.parse()?)

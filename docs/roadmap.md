@@ -134,7 +134,11 @@ scheduled alongside the tasks below (D1–D3 and D6a can start now)._
   [windows-capture.md](windows-capture.md), [decision 0010](decisions/0010-windows-capture.md).
 - [x] **M4-3 Linux X11 backend** (x11rb; Wayland sessions report unsupported). Built
   and tested by Linux CI; capture itself still needs a manual check on a real X11 desktop.
-- [ ] **M4-4 Linux Wayland backend** (xdg-desktop-portal).
+- [~] **M4-4 Linux Wayland backend** (xdg-desktop-portal).
+  Screenshot portal implementation supports interactive `capture_screen(None)`;
+  explicit IDs, enumeration and desktop-coordinate regions remain unsupported.
+  Host tests and Linux cross-compilation cover the implementation; real Wayland
+  desktop approval/cancellation checks remain pending. See [wayland-capture.md](wayland-capture.md).
 - [ ] **M4-5 Region/window picker overlay**, previous region, timed capture.
 - [ ] **M4-6 Global hotkey / tray icon**, `app capture` CLI command.
 

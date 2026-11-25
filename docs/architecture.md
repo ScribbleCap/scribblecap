@@ -26,7 +26,7 @@ _Status: accepted stack ([0001-tech-stack](decisions/0001-tech-stack.md)); modul
 | `core` | Document model, JSON (de)serialisation, undo history, **geometry** (arrow outline, freehand smoothing + curve fit, shapes, text layout boxes), flat rendering for export (tiny-skia) | UI, OS APIs |
 | `formats` | Read/write images (PNG, JPEG, HEIF/AVIF, WebP, TIFF, BMP, GIF, SVG→raster), embed/extract the editable document | UI, OS APIs |
 | `pdf` (added in M6) | Render PDF pages, write standard annotations + embedded document as an incremental update | UI, OS APIs |
-| `capture` | Screen/window/region capture, one backend per OS | UI |
+| `capture` | Screen/window/region capture, one backend per OS; Linux uses `formats` at runtime to decode portal screenshots | UI |
 
 `capture` exposes one `Capturer` trait (`list_windows`, `displays`, `capture_screen`,
 `capture_window`, `capture_region`) in desktop points; images come back as sRGB RGBA8
@@ -44,8 +44,12 @@ screen/region, and Composite `NameWindowPixmap` for windows (so covered windows 
 whole under a compositing manager; without one, covered parts show what is on top).
 X11 has no scale factor (scale 1, points = pixels), needs no permission, and cannot
 exclude our own windows from root captures, so the app hides them first. A Wayland
-session (`XDG_SESSION_TYPE=wayland` or `WAYLAND_DISPLAY` set) returns
-`Unsupported` until the portal backend (M4-4). Pure helpers (pixel decoding, region
+session (`XDG_SESSION_TYPE=wayland` or `WAYLAND_DISPLAY` set) selects the
+xdg-desktop-portal Screenshot backend instead of XWayland. It supports interactive
+`capture_screen(None)` only, returns pixel-space scale 1, and cannot enumerate
+windows/displays or honour native IDs/desktop-coordinate regions. See
+[wayland-capture.md](wayland-capture.md) and [decision 0012](decisions/0012-wayland-screenshot.md).
+Pure helpers (pixel decoding, region
 rounding, session detection) live in `x11_pixels.rs` and are tested on every OS.
 | `app` | Tauri shell: windows, menus, clipboard, drag-and-drop, settings, hotkeys | — |
 | `ui` | Svelte 5/TypeScript editor front-end, Canvas 2D viewport | OS APIs (goes through `app`) |
