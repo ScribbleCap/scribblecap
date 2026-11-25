@@ -77,17 +77,34 @@ fn pick_folder(app: &AppHandle) -> Result<Option<PathBuf>, String> {
     else {
         return Ok(None);
     };
-    let folder = selected
+    selected
         .into_path()
-        .map_err(|e| format!("The selected folder is unavailable: {e}"))?;
-    if !usable_folder(&folder) {
-        return Err("That folder cannot be written to. Choose another.".into());
-    }
-    Ok(Some(folder))
+        .map(Some)
+        .map_err(|e| format!("The selected folder is unavailable: {e}"))
 }
 
-/// The saved capture folder if usable, otherwise a folder picker whose choice is stored.
-/// `Ok(None)` when the picker is cancelled. Blocks on the dialog: call off the main thread.
+/// Keeps the saved folder if usable; otherwise asks `pick` until a usable folder
+/// is chosen. Returns the folder and whether it is new, or `None` if cancelled.
+fn resolve_folder(
+    saved: Option<PathBuf>,
+    usable: impl Fn(&Path) -> bool,
+    mut pick: impl FnMut() -> Result<Option<PathBuf>, String>,
+) -> Result<Option<(PathBuf, bool)>, String> {
+    if let Some(folder) = saved.filter(|f| usable(f)) {
+        return Ok(Some((folder, false)));
+    }
+    loop {
+        match pick()? {
+            None => return Ok(None),
+            Some(folder) if usable(&folder) => return Ok(Some((folder, true))),
+            Some(_) => {}
+        }
+    }
+}
+
+/// The saved capture folder if usable, otherwise a folder picker (asked again while
+/// the choice is unusable) whose choice is stored. `Ok(None)` when the picker is
+/// cancelled. Blocks on the dialog: call off the main thread.
 #[allow(dead_code)] // Used by the capture flow in a later M4-5 task.
 pub fn ensure_capture_folder(app: &AppHandle) -> Result<Option<PathBuf>, String> {
     let state = app.state::<SettingsState>();
@@ -97,13 +114,12 @@ pub fn ensure_capture_folder(app: &AppHandle) -> Result<Option<PathBuf>, String>
         .map_err(|_| "The settings are unavailable.".to_string())?
         .capture_folder
         .clone();
-    if let Some(folder) = saved.filter(|f| usable_folder(f)) {
-        return Ok(Some(folder));
-    }
-    let Some(folder) = pick_folder(app)? else {
+    let Some((folder, changed)) = resolve_folder(saved, usable_folder, || pick_folder(app))? else {
         return Ok(None);
     };
-    update(app, &state, |s| s.capture_folder = Some(folder.clone()))?;
+    if changed {
+        update(app, &state, |s| s.capture_folder = Some(folder.clone()))?;
+    }
     Ok(Some(folder))
 }
 
@@ -132,6 +148,9 @@ pub async fn shell_choose_capture_folder(app: AppHandle) -> Result<Settings, Str
     tauri::async_runtime::spawn_blocking(move || {
         let state = worker.state::<SettingsState>();
         match pick_folder(&worker)? {
+            Some(folder) if !usable_folder(&folder) => {
+                Err("That folder cannot be written to. Choose another.".to_string())
+            }
             Some(folder) => update(&worker, &state, |s| s.capture_folder = Some(folder)),
             None => state
                 .0
@@ -147,6 +166,33 @@ pub async fn shell_choose_capture_folder(app: AppHandle) -> Result<Settings, Str
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unusable_picks_ask_again_until_usable_or_cancelled() {
+        let usable = |p: &Path| p.ends_with("good");
+        let mut picks = vec![
+            Some("bad".into()),
+            Some("worse".into()),
+            Some("good".into()),
+        ]
+        .into_iter();
+        let mut asked = 0;
+        let got = resolve_folder(Some("stale".into()), usable, || {
+            asked += 1;
+            Ok(picks.next().unwrap())
+        });
+        assert_eq!(got, Ok(Some((PathBuf::from("good"), true))));
+        assert_eq!(asked, 3);
+        assert_eq!(
+            resolve_folder(Some("good".into()), usable, || panic!("no picker")),
+            Ok(Some((PathBuf::from("good"), false)))
+        );
+        let mut once = vec![Some("bad".into()), None].into_iter();
+        assert_eq!(
+            resolve_folder(None, usable, || Ok(once.next().unwrap())),
+            Ok(None)
+        );
+    }
 
     #[test]
     fn settings_default_off_and_survive_a_round_trip() {

@@ -3,6 +3,10 @@
 use chrono::NaiveDateTime;
 
 /// `Screenshot YYYY-MM-DD HH.MM.SS.png`, else the `.mmm` form when that is taken.
+///
+/// `taken` is only a hint: another writer can create the file after the check.
+/// Callers must save with `output::save_new` and, on `AlreadyExists`, pick the
+/// next name (re-run this with a fresh time) and retry.
 /// `None` means both are taken: the caller waits 1 ms and retries with a new time.
 pub fn capture_file_name(at: NaiveDateTime, taken: impl Fn(&str) -> bool) -> Option<String> {
     let seconds = format!("{}.png", capture_title(at));
@@ -44,6 +48,11 @@ pub(crate) mod tests {
         assert_eq!(
             capture_file_name(at(315), first).as_deref(),
             Some("Screenshot 2026-11-24 18.42.07.315.png")
+        );
+        let seconds_only = |n: &str| n == "Screenshot 2026-11-24 18.42.07.png";
+        assert_eq!(
+            capture_file_name(at(5), seconds_only).as_deref(),
+            Some("Screenshot 2026-11-24 18.42.07.005.png")
         );
         assert_eq!(capture_file_name(at(5), |_| true), None);
         assert_eq!(capture_title(at(5)), "Screenshot 2026-11-24 18.42.07");

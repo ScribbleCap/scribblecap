@@ -237,6 +237,28 @@ fn with_default_extension(path: std::path::PathBuf) -> std::path::PathBuf {
     }
 }
 
+/// Writes a new file without ever replacing one: the bytes go to a temporary
+/// file in the same folder, then are linked into place only if `path` is free.
+/// Fails with `ErrorKind::AlreadyExists` if something is already there.
+#[allow(dead_code)] // Used by the capture flow in a later M4-5 task.
+pub(crate) fn save_new(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "no save folder"))?;
+    let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        temporary
+            .as_file()
+            .set_permissions(std::fs::Permissions::from_mode(0o644))?;
+    }
+    temporary.write_all(bytes)?;
+    temporary.as_file().sync_all()?;
+    temporary.persist_noclobber(path).map_err(|e| e.error)?;
+    Ok(())
+}
+
 pub(crate) fn atomic_save(path: &Path, bytes: &[u8]) -> Result<(), String> {
     let parent = path.parent().ok_or("The save folder is unavailable.")?;
     let mut temporary = tempfile::NamedTempFile::new_in(parent)
@@ -504,6 +526,19 @@ pub async fn shell_drag_image(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn save_new_refuses_to_overwrite_and_writes_fresh_paths() {
+        let directory = tempfile::tempdir().unwrap();
+        let existing = directory.path().join("a.png");
+        std::fs::write(&existing, b"original").unwrap();
+        let error = save_new(&existing, b"new").unwrap_err();
+        assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
+        assert_eq!(std::fs::read(&existing).unwrap(), b"original");
+        let fresh = directory.path().join("b.png");
+        save_new(&fresh, b"fresh").unwrap();
+        assert_eq!(std::fs::read(&fresh).unwrap(), b"fresh");
+    }
+
     use super::*;
     #[test]
     fn share_cache_keeps_five_newest_and_pins_in_progress_drags() {
