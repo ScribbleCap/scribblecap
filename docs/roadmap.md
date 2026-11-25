@@ -39,7 +39,8 @@ Legend: `[ ]` todo · `[~]` in progress (put your branch name) · `[x]` done
   CI is implemented and green. Remaining: require pull requests and the three
   checks in the `main` ruleset (currently only deletion/force-push protection).
 
-- [ ] **M0-4 Skip CI work for documentation-only changes.** Deps: M0-3.
+- [x] **M0-4 Skip CI work for documentation-only changes.** Deps: M0-3. Done in #5;
+  repository-settings-only changes also skip builds (#16). See the note in `AGENTS.md`.
   Scope: files under `.github/`, plus one note in `AGENTS.md`. A pull request or push that changes only
   documentation (`**/*.md`, `docs/**`, `LICENSE*`) must not build or test, while
   every other change still runs the full checks.
@@ -118,13 +119,14 @@ scheduled alongside the tasks below (D1–D3 and D6a can start now)._
 - [ ] **M2-5 Colour and size pickers**, keyboard shortcuts for every tool.
 - [x] **M2-6 Undo/redo** for every operation. Snapshot history in `core`; see
   [editor.md](editor.md#undo-and-redo).
-- [ ] **M2-7 Crop, resize, expand canvas, rotate/flip.**
+- [~] **M2-7 Crop, resize, expand canvas, rotate/flip.**
   Raster operations implemented and tested; annotation transforms and undo
   integration remain. See [canvas-transforms.md](canvas-transforms.md).
 - [ ] **M2-8 Pixelate and redact** (destructive; original replaced in stored resource).
-- [~] **M2-9 Copy, drag-out, save / save as** in every supported format (`agent/m2-9-file-actions`).
-  Current annotations render through core; editable PNG/JPEG/WebP saves, explicit
-  flat exports, atomic writes and native drag-out implemented. Desktop clipboard,
+- [~] **M2-9 Copy, drag-out, save / save as** in every supported format.
+  Current annotations render through core. Save writes an editable PNG and never
+  replaces an opened photo; Export writes a flat PNG, JPEG, WebP, TIFF, BMP or GIF.
+  Atomic writes, native drag-out and binary pixel requests (decision 0014) implemented. Desktop clipboard,
   dialogs and drag delivery smoke checks remain on all three OSes; see [app-shell.md](app-shell.md).
 - [ ] **M2-10 Stamps and step counters.** New artwork (no Skitch assets).
 
