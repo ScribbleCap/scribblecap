@@ -3,6 +3,8 @@
 import { readFile } from 'node:fs/promises';
 import { Buffer } from 'node:buffer';
 import console from 'node:console';
+import process from 'node:process';
+import { URL } from 'node:url';
 import { stripTypeScriptTypes } from 'node:module';
 import { performance } from 'node:perf_hooks';
 
