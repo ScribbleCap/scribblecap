@@ -62,6 +62,27 @@ selection overlay, previous region and a timer. The result opens in the editor.
   `request_permission`).
 - Clean room: nothing from `re-work/` or Skitch: no code, artwork, sounds or name.
 
+## Clean room (copyright and trade dress)
+
+Capture tools share common behaviour (drag a rectangle, crosshair, size readout,
+countdown), and behaviour is not copyrightable. Their code, artwork, sounds, wording
+and distinctive look are. For M4-5:
+
+- **No reference material from `re-work/` or any copy of Skitch** while building the
+  overlay, badge or menu. Behaviour comes from this design and `design-review.md`.
+- **All visuals are drawn new** as our own SVG paths or CSS, like the existing toolbar
+  icons: crosshair, size label, window highlight, countdown badge and Capture icon. No
+  SF Symbols (Apple's licence limits them to Apple platforms and forbids using them in
+  app icons), no Segoe Fluent or Material icon fonts, no screenshots or traced artwork
+  from Skitch, macOS Screenshot, Snipping Tool, Flameshot or similar.
+- **No capture sound** in M4-5. A later sound must be original or under a compatible
+  licence, never a recorded camera shutter from another product.
+- **No other product's name** in the UI, file names, settings or messages. The file
+  name `Screenshot <date time>` is a generic description, chosen for clarity.
+- **The look follows ScribbleCap's own design** (`design-review.md`), not a copy of
+  another tool's overlay colours, handles and label styling.
+- **New dependencies** need a licence compatible with decision 0001, noted in the PR.
+
 ## Approaches considered
 
 | Approach | Trade-off | Outcome |
