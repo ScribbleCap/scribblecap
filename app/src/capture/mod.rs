@@ -186,6 +186,12 @@ fn open_overlays<F: FnMut()>(
         state.result = None;
         state.contacted = false;
         state.generation += 1;
+        if state.cancel.load(Ordering::SeqCst) {
+            // Cancelled while freezing: the cancel already ran, so do not open overlays.
+            drop(state);
+            discard(app);
+            return Ok(None); // dropping `hidden` shows the editor, `busy` frees the slot
+        }
     }
     for display in displays {
         let b = display.bounds;
@@ -242,6 +248,7 @@ fn discard(app: &AppHandle) {
         state.frozen.clear();
         state.windows.clear();
         state.mode = None;
+        state.result = None;
     }
 }
 
@@ -408,11 +415,18 @@ pub async fn shell_capture_timer(app: AppHandle, seconds: u8) -> Result<Response
             badge
                 .build()
                 .map_err(|e| format!("The capture timer could not be shown: {e}"))?;
+            if let Ok(mut state) = lock(&app) {
+                state.counting = true;
+            }
             for _ in 0..u32::from(seconds) * 10 {
                 if cancel.load(Ordering::SeqCst) {
                     break;
                 }
                 std::thread::sleep(Duration::from_millis(100));
+            }
+            // The badge closes normally from here; that is not a cancel.
+            if let Ok(mut state) = lock(&app) {
+                state.counting = false;
             }
             if let Some(window) = app.get_webview_window(COUNTDOWN) {
                 let _ = window.close();
@@ -530,8 +544,9 @@ pub async fn shell_capture_result(app: AppHandle) -> Result<Response, String> {
 }
 
 fn cancel(app: &AppHandle) {
-    if let Ok(state) = lock(app) {
+    if let Ok(mut state) = lock(app) {
         state.cancel.store(true, Ordering::SeqCst);
+        state.counting = false;
         // Overlays own the busy flag; a running worker (timer) releases its own.
         if state.mode.is_some() {
             Busy::release(&state.busy);
@@ -548,15 +563,18 @@ pub fn shell_capture_cancel(app: AppHandle) {
     cancel(&app);
 }
 
+/// Whether destroying the window with this label ends the capture: an overlay
+/// while overlays are open, or the badge while the timer is still waiting.
+fn destroy_cancels(label: &str, overlays_open: bool, counting: bool) -> bool {
+    (label.starts_with(OVERLAY_PREFIX) && overlays_open) || (label == COUNTDOWN && counting)
+}
+
 /// An overlay closed by the system (not by a selection) cancels the capture,
 /// so the editor never stays hidden.
 pub fn window_destroyed(window: &tauri::Window) {
-    if !window.label().starts_with(OVERLAY_PREFIX) {
-        return;
-    }
     let app = window.app_handle();
-    let active = lock(app).is_ok_and(|s| s.mode.is_some());
-    if active {
+    let (overlays, counting) = lock(app).map_or((false, false), |s| (s.mode.is_some(), s.counting));
+    if destroy_cancels(window.label(), overlays, counting) {
         cancel(app);
     }
 }
@@ -575,5 +593,14 @@ mod select_tests {
             require_active(Some(CaptureMode::Region)),
             Ok(CaptureMode::Region)
         );
+    }
+
+    #[test]
+    fn only_capture_windows_cancel_when_destroyed() {
+        assert!(destroy_cancels("capture-overlay-1", true, false));
+        assert!(!destroy_cancels("capture-overlay-1", false, false));
+        assert!(destroy_cancels(COUNTDOWN, false, true));
+        assert!(!destroy_cancels(COUNTDOWN, false, false)); // the timer ended normally
+        assert!(!destroy_cancels("main", true, true));
     }
 }

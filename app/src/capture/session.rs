@@ -194,6 +194,8 @@ pub struct CaptureInner {
     pub generation: u64,
     /// An overlay page asked for its info or frame.
     pub contacted: bool,
+    /// The countdown badge is showing and the timer is still waiting.
+    pub counting: bool,
 }
 
 #[derive(Default)]

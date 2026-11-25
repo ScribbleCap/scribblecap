@@ -67,3 +67,6 @@ starts in the capture folder. Auto-saved and first-saved captures are editable P
   real desktops; see the checklist in `docs/app-shell.md`.
 - Adds a direct dependency on `chrono`. M4-6 (hotkey, tray, CLI) can start the same
   Rust capture flow without the editor being visible.
+- Custom commands are declared in `app/build.rs` and granted per window in
+  `app/capabilities/`: the main window gets all of them, the capture overlays and the
+  countdown badge only the overlay and cancel commands they call.

@@ -2,6 +2,33 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Permissions for the main editor window",
-  "windows": ["main"],
-  "permissions": ["core:default", "core:window:allow-start-dragging"]
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "allow-shell-open-image",
+    "allow-shell-paste-image",
+    "allow-shell-drop-image",
+    "allow-shell-copy-image",
+    "allow-shell-transform-image",
+    "allow-shell-privacy-image",
+    "allow-shell-restore-privacy",
+    "allow-shell-save-image",
+    "allow-shell-drag-image",
+    "allow-shell-begin-drag",
+    "allow-shell-cancel-drag",
+    "allow-shell-get-settings",
+    "allow-shell-set-auto-save",
+    "allow-shell-choose-capture-folder",
+    "allow-shell-capture-state",
+    "allow-shell-capture",
+    "allow-shell-capture-timer",
+    "allow-shell-overlay-info",
+    "allow-shell-overlay-frame",
+    "allow-shell-overlay-select",
+    "allow-shell-capture-result",
+    "allow-shell-capture-cancel"
+  ]
 }

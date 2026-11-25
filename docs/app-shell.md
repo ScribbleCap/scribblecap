@@ -180,7 +180,9 @@ decision: [0016](decisions/0016-in-app-capture.md).
   region has been captured in this session.
 - **Timer.** The editor hides and a small countdown badge shows in a corner of the
   display under the pointer. The freeze happens when it ends, so menus opened
-  meanwhile are captured. Escape or a click on the badge cancels.
+  meanwhile are captured. When the countdown ends the screen is frozen and the Region
+  overlay opens (on Wayland the portal request is sent instead). Escape or a click
+  on the badge cancels.
 - **Wayland.** Region and Full screen send one portal request; the system dialog
   chooses what to capture, and the user crops in the editor. Window and Previous
   region are disabled. Timer waits, then sends the request.
