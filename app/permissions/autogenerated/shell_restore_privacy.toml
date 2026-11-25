@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-shell-restore-privacy"
+description = "Enables the shell_restore_privacy command without any pre-configured scope."
+commands.allow = ["shell_restore_privacy"]
+
+[[permission]]
+identifier = "deny-shell-restore-privacy"
+description = "Denies the shell_restore_privacy command without any pre-configured scope."
+commands.deny = ["shell_restore_privacy"]

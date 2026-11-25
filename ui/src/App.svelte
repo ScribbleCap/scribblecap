@@ -39,6 +39,14 @@
     { tool: 'roundedRectangle', label: 'Rounded rectangle', key: 'U', icon: 'M8 6h8a4 4 0 014 4v4a4 4 0 01-4 4H8a4 4 0 01-4-4v-4a4 4 0 014-4z' },
     { tool: 'ellipse', label: 'Ellipse', key: 'O', icon: 'M12 6c4.4 0 8 2.7 8 6s-3.6 6-8 6-8-2.7-8-6 3.6-6 8-6z' },
   ];
+  /** Shape tools fold into one Shapes menu on narrow windows. */
+  const SHAPES: Tool[] = ['line', 'rectangle', 'roundedRectangle', 'ellipse'];
+  const PRIVACY_TOOLS: { mode: 'pixelate' | 'redact'; label: string; key: string; icon: string }[] = [
+    { mode: 'pixelate', label: 'Pixelate', key: 'P', icon: 'M4 4h5v5H4zM9 9h6v6H9zM15 4h5v5h-5zM4 15h5v5H4zM15 15h5v5h-5z' },
+    { mode: 'redact', label: 'Redact', key: 'X', icon: 'M3 9h18v6H3z' },
+  ];
+  let shapesOpen = $state(false);
+  let shapesSummary = $state<HTMLElement>();
   /** Screen pixels: how close the pointer must be to a shape or handle. */
   const HIT = 6, HANDLE = 8, CLICK = 3;
 
@@ -322,9 +330,11 @@
   }
   function toolbarKey(event: KeyboardEvent) {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-    event.preventDefault(); event.stopPropagation();
-    const buttons = [...(event.currentTarget as HTMLElement).querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
+    // Only the row's own visible buttons rove; the Shapes summary and list keep normal keys.
+    const buttons = [...(event.currentTarget as HTMLElement).querySelectorAll<HTMLButtonElement>(':scope > button:not(:disabled)')].filter(b => getComputedStyle(b).display !== 'none');
     const index = buttons.indexOf(event.target as HTMLButtonElement);
+    if (index < 0) return;
+    event.preventDefault(); event.stopPropagation();
     const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length;
     buttons[next]?.focus(); buttons[next]?.click();
   }
@@ -350,8 +360,8 @@
       return;
     }
     if (event.key === 'Escape' && event.target instanceof Element) {
-      const details = event.target.closest('details');
-      if (details?.open) { details.open = false; details.querySelector('summary')?.focus(); event.preventDefault(); return; }
+      const details = event.target.closest<HTMLDetailsElement>('details[open]');
+      if (details) { details.open = false; details.querySelector('summary')?.focus(); event.preventDefault(); return; }
     }
     if (editableTarget(event.target) || event.altKey) return;
     const key = event.key.toLowerCase();
@@ -371,7 +381,7 @@
     }
     if (event.target instanceof Element && event.target.closest('button, summary, a')) return;
     if (!image || busy) return;
-    if (key === 'p' || key === 'x') { event.preventDefault(); privacyMode = key === 'p' ? 'pixelate' : 'redact'; selected = null; return; }
+    if ((key === 'p' || key === 'x') && bridge.desktop) { event.preventDefault(); privacyMode = key === 'p' ? 'pixelate' : 'redact'; selected = null; return; }
     if (event.key === '[' || event.key === ']') {
       event.preventDefault(); const sizes = [2, 4, 6, 10, 16]; const index = sizes.indexOf(style.width);
       changeStyle({ ...style, width: sizes[Math.max(0, Math.min(4, index + (event.key === ']' ? 1 : -1)))] }); return;
@@ -607,10 +617,7 @@
 <main aria-busy={busy} class:mac={mac && bridge.desktop}>
   <header class="titlebar" data-tauri-drag-region>
     {#if bridge.desktop}<CaptureMenu {busy} capture={startCapture} timer={startTimer} settings={() => settingsOpen = true} />{/if}
-    <div class="input-actions">
-      <button class="quiet" onclick={openImage} disabled={busy} title={`Open image (${mod}O)`}>Open image</button>
-      <button class="quiet" onclick={pasteImage} disabled={busy} title={`Paste image (${mod}V)`}>Paste image</button>
-    </div>
+    <!-- Left: Capture, then history. Open and Paste are in the File menu, the shortcuts and the empty state. -->
     <div class="history-actions">
       <button class="tool" aria-label="Undo" title={`Undo (${mod}Z)`} disabled={!canUndo || !!gesture} onclick={() => travel('undo')}>
         <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
@@ -619,29 +626,51 @@
         <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 14l5-5-5-5M20 9H10a6 6 0 000 12h3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
       </button>
     </div>
-    <CanvasControls image={transformSource} {busy} load={(action) => load(action, true)} />
-    <div class="tools" role="toolbar" tabindex="-1" aria-label="Tools" onkeydown={toolbarKey}>
-      {#each TOOLS as t (t.tool)}
-        <button class="tool" tabindex={tool === t.tool ? 0 : -1} aria-keyshortcuts={t.key} aria-label={t.label} aria-pressed={tool === t.tool} title={`${t.label} (${t.key})`} disabled={!image || busy} onclick={() => chooseTool(t.tool)}>
-          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d={t.icon} fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
-        </button>
-      {/each}
+    <!-- Right: tools, then colour and size, then more, then share (design review D4). -->
+    <div class="right-actions">
+      <div class="tools" role="toolbar" tabindex="-1" aria-label="Tools" onkeydown={toolbarKey}>
+        {#each TOOLS as t (t.tool)}
+          <button class="tool" class:shape-tool={SHAPES.includes(t.tool)} tabindex={!privacyMode && tool === t.tool ? 0 : -1} aria-keyshortcuts={t.key} aria-label={t.label} aria-pressed={!privacyMode && tool === t.tool} title={`${t.label} (${t.key})`} disabled={!image || busy} onclick={() => chooseTool(t.tool)}>
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d={t.icon} fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+          </button>
+        {/each}
+        <details class="shape-menu" bind:open={shapesOpen}>
+          <summary class="tool" bind:this={shapesSummary} aria-label={`Shapes${SHAPES.includes(tool) ? `: ${TOOLS.find(t => t.tool === tool)?.label}` : ''}`} title="Shapes" class:active={!privacyMode && SHAPES.includes(tool)}>
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d={(TOOLS.find(t => t.tool === tool && SHAPES.includes(tool)) ?? TOOLS.find(t => t.tool === 'rectangle'))!.icon} fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+          </summary>
+          {#if shapesOpen}<div class="shape-list">
+            {#each TOOLS.filter(t => SHAPES.includes(t.tool)) as t (t.tool)}
+              <button class="tool" aria-label={t.label} aria-pressed={!privacyMode && tool === t.tool} title={`${t.label} (${t.key})`} disabled={!image || busy} onclick={() => { chooseTool(t.tool); shapesOpen = false; shapesSummary?.focus(); }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d={t.icon} fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+              </button>
+            {/each}
+          </div>{/if}
+        </details>
+        {#each PRIVACY_TOOLS as p (p.mode)}
+          <button class="tool" tabindex={privacyMode === p.mode ? 0 : -1} aria-keyshortcuts={p.key} aria-label={p.label} aria-pressed={privacyMode === p.mode} title={`${p.label} (${p.key})`} disabled={!image || busy || !bridge.desktop} onclick={() => { if (!gesture && !busy) { privacyMode = p.mode; selected = null; } }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d={p.icon} fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" /></svg>
+          </button>
+        {/each}
+      </div>
+      <label class="compact-tools">Tool <select value={privacyMode ?? tool} disabled={!image || busy} onchange={(event) => { const v = event.currentTarget.value; if (v === 'pixelate' || v === 'redact') { if (!gesture) { privacyMode = v; selected = null; } } else chooseTool(v as Tool); }}>{#each TOOLS as t (t.tool)}<option value={t.tool}>{t.label} ({t.key})</option>{/each}{#each PRIVACY_TOOLS as p (p.mode)}<option value={p.mode} disabled={!bridge.desktop}>{p.label} ({p.key})</option>{/each}</select></label>
+      <StyleControls {style} disabled={!image || busy || !!gesture} change={changeStyle}>
+        {#snippet extra()}{#if tool === 'stamp'}<label class="stamp-choice">Stamp artwork <select bind:value={stamp}><option value="signal-check">Signal check</option><option value="signal-alert">Signal alert</option><option value="signal-spark">Signal spark</option></select></label>{/if}{/snippet}
+      </StyleControls>
+      <details class="more-actions">
+        <summary aria-label="More: canvas, annotations and privacy" title="More">⋯</summary>
+        <div class="more-panel">
+          <CanvasControls image={transformSource} {busy} load={(action) => load(action, true)} />
+          <AnnotationControls {items} {selected} {tool} disabled={!image || busy || !!gesture} add={addByKeyboard} select={selectByKeyboard} resize={resizeByKeyboard} />
+          <PrivacyControls {image} disabled={busy || !!gesture || !bridge.desktop} apply={privacyEdit} />
+        </div>
+      </details>
+      <details class="share-actions"><summary>Share</summary><div>
+        <button onclick={copyImage} disabled={!image || busy} title={`Copy image (${mod}C)`}>Copy image</button>
+        <button onclick={() => saveImage()} disabled={!image || busy} title={`Save (${mod}S)`}>Save image</button>
+        <button onclick={() => saveImage(true)} disabled={!image || busy} title={`Save as (${mod}Shift+S)`}>Save as…</button>
+        <button onclick={() => saveImage(true, true)} disabled={!image || busy}>Export flat…</button>
+      </div></details>
     </div>
-    <label class="compact-tools">Tool <select value={tool} disabled={!image || busy} onchange={(event) => chooseTool(event.currentTarget.value as Tool)}>{#each TOOLS as t (t.tool)}<option value={t.tool}>{t.label} ({t.key})</option>{/each}</select></label>
-    <AnnotationControls {items} {selected} {tool} disabled={!image || busy || !!gesture} add={addByKeyboard} select={selectByKeyboard} resize={resizeByKeyboard} />
-    {#if tool === 'stamp'}<label class="stamp-choice">Stamp artwork <select bind:value={stamp}><option value="signal-check">Signal check</option><option value="signal-alert">Signal alert</option><option value="signal-spark">Signal spark</option></select></label>{/if}
-    <div class="privacy-tools" aria-label="Privacy tools">
-      <button aria-pressed={privacyMode === 'pixelate'} disabled={!image || busy || !bridge.desktop} title="Pixelate (P)" onclick={() => { privacyMode = 'pixelate'; selected = null; }}>Pixelate</button>
-      <button aria-pressed={privacyMode === 'redact'} disabled={!image || busy || !bridge.desktop} title="Redact (X)" onclick={() => { privacyMode = 'redact'; selected = null; }}>Redact</button>
-    </div>
-    <PrivacyControls {image} disabled={busy || !!gesture || !bridge.desktop} apply={privacyEdit} />
-    <StyleControls {style} disabled={!image || busy || !!gesture} change={changeStyle} />
-    <details class="share-actions"><summary>Share</summary><div>
-      <button onclick={copyImage} disabled={!image || busy} title={`Copy image (${mod}C)`}>Copy image</button>
-      <button onclick={() => saveImage()} disabled={!image || busy} title={`Save (${mod}S)`}>Save image</button>
-      <button onclick={() => saveImage(true)} disabled={!image || busy} title={`Save as (${mod}Shift+S)`}>Save as…</button>
-      <button onclick={() => saveImage(true, true)} disabled={!image || busy}>Export flat…</button>
-    </div></details>
   </header>
   {#if privacyMode}<p class="privacy-notice">{privacyMode === 'redact' ? 'Redact' : 'Pixelate'}: drag a region to replace background pixels. Annotations stay editable and session undo remains available. Save the current cleaned version; existing files are unchanged.</p>{/if}
   {#if error}<div class="error" role="alert"><span>{error}</span><button onclick={() => error = ''} aria-label="Dismiss error">×</button></div>{/if}
@@ -691,8 +720,20 @@
   dialog { max-width: min(42rem, 92vw); max-height: 85vh; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: .6rem; }
   dialog pre { white-space: pre-wrap; font-size: 12px; }
   .compact-tools { display: none; }
-  @media (max-width: 1250px) { .tools { display: none; } .compact-tools { display: flex; gap: .3rem; align-items: center; } }
-  .share-actions { position: relative; margin-left: auto; }
+  .right-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+  .shape-menu { display: none; position: relative; }
+  .shape-menu summary { list-style: none; cursor: pointer; }
+  .shape-menu summary::-webkit-details-marker { display: none; }
+  .shape-menu summary.active { color: var(--accent); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+  .shape-list { position: absolute; top: 100%; left: 0; z-index: 6; display: flex; gap: 2px; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+  @media (max-width: 960px) { .tools .shape-tool { display: none; } .shape-menu { display: block; } }
+  @media (max-width: 720px) { .tools { display: none; } .compact-tools { display: flex; gap: .3rem; align-items: center; } }
+  .more-actions { position: relative; }
+  .more-actions > summary { cursor: pointer; padding: .5rem; list-style: none; font-size: 18px; line-height: 1; }
+  .more-panel { position: absolute; top: 100%; right: 0; z-index: 6; max-height: calc(100dvh - 4rem); overflow: auto; display: grid; gap: .2rem; min-width: 12rem; padding: .4rem; background: var(--surface); border: 1px solid var(--line); border-radius: .5rem; }
+  /* The panels open in place inside More rather than as their own popovers. */
+  .more-panel :global(details > :not(summary)) { position: static; width: auto; max-width: min(23rem, 90vw); box-shadow: none; }
+  .share-actions { position: relative; }
   .share-actions summary { cursor: pointer; padding: .5rem; }
   .share-actions > div { position: absolute; top: 100%; right: 0; z-index: 5; display: grid; gap: .4rem; min-width: 9rem; padding: .5rem; background: var(--surface); border: 1px solid var(--line); border-radius: .5rem; }
   .output-status { position: absolute; z-index: 4; bottom: 1rem; left: 1rem; max-width: calc(100% - 2rem); background: var(--surface); padding: .4rem .7rem; border-radius: .4rem; }

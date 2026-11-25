@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-shell-transform-image"
+description = "Enables the shell_transform_image command without any pre-configured scope."
+commands.allow = ["shell_transform_image"]
+
+[[permission]]
+identifier = "deny-shell-transform-image"
+description = "Denies the shell_transform_image command without any pre-configured scope."
+commands.deny = ["shell_transform_image"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-shell-capture-state"
+description = "Enables the shell_capture_state command without any pre-configured scope."
+commands.allow = ["shell_capture_state"]
+
+[[permission]]
+identifier = "deny-shell-capture-state"
+description = "Denies the shell_capture_state command without any pre-configured scope."
+commands.deny = ["shell_capture_state"]

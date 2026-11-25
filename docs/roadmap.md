@@ -176,6 +176,13 @@ scheduled alongside the tasks below (D1–D3 and D6a can start now)._
   implemented and tested. Native screen-reader and OS menu smoke checks remain;
   see [editor-tools.md](editor-tools.md#keyboard-and-screen-reader-access-m5-3).
 - [x] **M5-4 CLI**: `annotate`, `render`, `convert` with docs and examples ([cli.md](cli.md)).
+- [ ] **M5-5 System share** on macOS and Windows: a **Share…** item in the Share menu
+  opens the operating system's share sheet with the annotated image (macOS
+  `NSSharingServicePicker`; Windows `DataTransferManager` share UI). Linux has no
+  standard share sheet (no `xdg-desktop-portal` share interface), so the item is hidden
+  there; Copy, Save and drag-out cover it. Tauri has no desktop share API, so this needs
+  native code in `app` (and a decision record if it adds a dependency). Done when: the
+  sheet opens anchored to the Share button and shares a PNG on macOS and Windows.
 
 ## M6 — After first release: HEIF/AVIF, SVG, PDF
 

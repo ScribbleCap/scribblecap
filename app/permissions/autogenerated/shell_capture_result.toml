@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-shell-capture-result"
+description = "Enables the shell_capture_result command without any pre-configured scope."
+commands.allow = ["shell_capture_result"]
+
+[[permission]]
+identifier = "deny-shell-capture-result"
+description = "Denies the shell_capture_result command without any pre-configured scope."
+commands.deny = ["shell_capture_result"]

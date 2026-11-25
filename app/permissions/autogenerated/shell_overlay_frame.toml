@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-shell-overlay-frame"
+description = "Enables the shell_overlay_frame command without any pre-configured scope."
+commands.allow = ["shell_overlay_frame"]
+
+[[permission]]
+identifier = "deny-shell-overlay-frame"
+description = "Denies the shell_overlay_frame command without any pre-configured scope."
+commands.deny = ["shell_overlay_frame"]

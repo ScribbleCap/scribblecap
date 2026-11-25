@@ -84,11 +84,15 @@ left of the window controls ( – ▢ ✕ ). Linux follows the theme's button la
   start. Open and Paste live in the File menu, ⌘/Ctrl O / V, and the empty state.
 - **Top right: tools** (select, arrow, line, rectangle, ellipse, text, marker,
   pixelate, step number), each on one key; then the current annotation colour as
-  one swatch and the stroke size; then share (copy, save).
+  one swatch and the stroke size (the panel also holds the stamp artwork picker while
+  Stamp is selected); then a **⋯ More** menu (Canvas, Annotations and the
+  numeric Privacy controls); then share (copy, save).
 - **Bottom: status bar** at readable size (12–13px, not 10px): file name and
   dimensions on the left, the drag-out tab in the centre, Fit and zoom on the right.
-- **Narrow windows:** the shape tools (line, rectangle, ellipse) collapse into one
-  button with a menu first, then marker and pixelate, so the title bar never wraps.
+- **Narrow windows:** the window is at least 800 × 560 px. Below 960 px the shape
+  tools (line, rectangle, rounded rectangle, ellipse) collapse into one Shapes button
+  with a menu, so the title bar never wraps. Below 720 px (reached only with large
+  text zoom) a Tool select replaces the icon row.
 
 ### The distinctive element: drag-out
 

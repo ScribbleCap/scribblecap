@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import App from './App.svelte';
 import { listen } from '@tauri-apps/api/event';
 import * as bridge from './lib/bridge';
@@ -57,7 +57,7 @@ describe('image shell', () => {
   it('opens an image, displays its name and dimensions, and zooms without reloading it', async () => {
     vi.mocked(bridge.openImage).mockResolvedValue(image());
     render(App);
-    await fireEvent.click(screen.getByRole('button', { name: 'Open image' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Open an image' }));
     await waitFor(() => expect(screen.getByLabelText('test.png, 2 by 1 pixels')).toBeTruthy());
     expect(screen.getByText('2 × 1 px')).toBeTruthy();
     await fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
@@ -69,13 +69,14 @@ describe('image shell', () => {
   it('preserves the current image on cancel and on error, and can dismiss the error', async () => {
     vi.mocked(bridge.openImage).mockResolvedValueOnce(image()).mockResolvedValueOnce(null).mockRejectedValueOnce(new Error('Unsupported image'));
     render(App);
-    const open = screen.getByRole('button', { name: 'Open image' });
-    await fireEvent.click(open);
+    await fireEvent.click(screen.getByRole('button', { name: 'Open an image' }));
     await waitFor(() => expect(screen.getByLabelText('test.png, 2 by 1 pixels')).toBeTruthy());
-    await fireEvent.click(open);
-    await waitFor(() => expect((open as HTMLButtonElement).disabled).toBe(false));
+    // With an image open, Open lives in the File menu and on the shortcut.
+    await fireEvent.keyDown(window, { key: 'o', ctrlKey: true });
+    await waitFor(() => expect(bridge.openImage).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByText('Loading image…')).toBeNull());
     expect(screen.getByLabelText('test.png, 2 by 1 pixels')).toBeTruthy();
-    await fireEvent.click(open);
+    await fireEvent.keyDown(window, { key: 'o', ctrlKey: true });
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Unsupported image'));
     expect(screen.getByLabelText('test.png, 2 by 1 pixels')).toBeTruthy();
     await fireEvent.click(screen.getByRole('button', { name: 'Dismiss error' }));
@@ -108,7 +109,7 @@ describe('image shell', () => {
   it('pans by dragging, releases pointer capture and handles wheel zoom', async () => {
     vi.mocked(bridge.openImage).mockResolvedValue(image());
     render(App);
-    await fireEvent.click(screen.getByRole('button', { name: 'Open image' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Open an image' }));
     await waitFor(() => expect(screen.getByLabelText('test.png, 2 by 1 pixels')).toBeTruthy());
     const viewport = screen.getByRole('region', { name: 'Image viewport' });
     await fireEvent.keyDown(window, { key: 'v' }); // select tool: dragging empty space pans
@@ -128,7 +129,7 @@ describe('image shell', () => {
   it('keeps a fitted image fitted when the viewport is resized', async () => {
     vi.mocked(bridge.openImage).mockResolvedValue({ name: 'big.png', width: 2000, height: 1000, pixels: new Uint8ClampedArray(2000 * 1000 * 4) });
     render(App);
-    await fireEvent.click(screen.getByRole('button', { name: 'Open image' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Open an image' }));
     await waitFor(() => expect(screen.getByLabelText('big.png, 2000 by 1000 pixels')).toBeTruthy());
     resize?.([{ contentRect: { width: 1040, height: 540 } } as ResizeObserverEntry], {} as ResizeObserver);
     await waitFor(() => expect(screen.getByRole('button', { name: '50%' })).toBeTruthy());
@@ -138,7 +139,7 @@ describe('image shell', () => {
   it('keeps zoom when the viewport is resized', async () => {
     vi.mocked(bridge.openImage).mockResolvedValue(image());
     render(App);
-    await fireEvent.click(screen.getByRole('button', { name: 'Open image' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Open an image' }));
     await waitFor(() => expect(screen.getByLabelText('test.png, 2 by 1 pixels')).toBeTruthy());
     await fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
     const before = viewTransform();
@@ -153,7 +154,7 @@ describe('annotation tools', () => {
   async function openBig() {
     vi.mocked(bridge.openImage).mockResolvedValue(big());
     render(App);
-    await fireEvent.click(screen.getByRole('button', { name: 'Open image' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Open an image' }));
     await waitFor(() => expect(screen.getByLabelText('shot.png, 400 by 200 pixels')).toBeTruthy());
     const viewport = screen.getByRole('region', { name: 'Image viewport' });
     Object.assign(viewport, { setPointerCapture: vi.fn(), hasPointerCapture: () => true, releasePointerCapture: vi.fn(), getBoundingClientRect: () => ({ left: 0, top: 0 }) });
@@ -291,6 +292,41 @@ describe('annotation tools', () => {
     expect(screen.queryByText(/drag a region to replace background pixels/)).toBeNull();
     expect(screen.getByRole('button', { name: 'Pixelate' }).getAttribute('aria-pressed')).toBe('false');
   });
+  it('lays out the title bar: tools including privacy on the right, panels under More', async () => {
+    await openBig();
+    const header = document.querySelector('header.titlebar')!;
+    expect(header.querySelector('button')?.textContent).toContain('Capture');
+    expect(screen.queryByRole('button', { name: 'Open image' })).toBeNull();
+    const toolbar = screen.getByRole('toolbar', { name: 'Tools' });
+    await fireEvent.keyDown(window, { key: 'x' });
+    expect(pressed()).toEqual(['Redact']);
+    await fireEvent.click(within(toolbar).getByRole('button', { name: 'Pixelate' }));
+    expect(pressed()).toEqual(['Pixelate']);
+    await fireEvent.click(within(toolbar).getByRole('button', { name: 'Arrow' }));
+    expect(pressed()).toEqual(['Arrow']);
+    const more = header.querySelector('.more-actions')!;
+    for (const name of ['Canvas', 'Privacy']) expect(within(more as HTMLElement).getByText(name)).toBeTruthy();
+    expect(within(more as HTMLElement).getByText(/^Annotations/)).toBeTruthy();
+    expect(header.querySelector('summary[aria-label^="Colour and size: #"]')).toBeTruthy();
+  });
+  it('keeps title-bar menus usable from the keyboard', async () => {
+    await openBig();
+    const header = document.querySelector('header.titlebar')!;
+    const shapes = header.querySelector<HTMLElement>('.shape-menu summary')!;
+    shapes.focus();
+    await fireEvent.keyDown(shapes, { key: 'ArrowRight' });
+    expect(pressed()).toEqual(['Arrow']);
+    const more = header.querySelector<HTMLDetailsElement>('.more-actions')!; more.open = true;
+    const canvas = within(more).getByText('Canvas'); canvas.focus();
+    await fireEvent.keyDown(canvas, { key: 'Escape' });
+    expect(more.open).toBe(false);
+    const select = screen.getByLabelText('Tool') as HTMLSelectElement;
+    await fireEvent.change(select, { target: { value: 'redact' } });
+    expect(pressed()).toEqual(['Redact']);
+    expect(select.value).toBe('redact');
+    await fireEvent.change(select, { target: { value: 'arrow' } });
+    expect(pressed()).toEqual(['Arrow']);
+  });
   it('navigates tools with the keyboard and preserves native text-field keys', async () => {
     await openBig();
     const arrow = screen.getByRole('button', { name: 'Arrow' });
@@ -411,7 +447,7 @@ describe('annotation tools', () => {
     const viewport = await openBig();
     await drag(viewport, [220, 220], [320, 260]);
     expect((screen.getByRole('button', { name: 'Undo' }) as HTMLButtonElement).disabled).toBe(false);
-    await fireEvent.click(screen.getByRole('button', { name: 'Open image' }));
+    await fireEvent.keyDown(window, { key: 'o', ctrlKey: true });
     await fireEvent.click(screen.getByRole('button', { name: 'Discard' })); // unsaved annotations: M4-5 prompt
     await waitFor(() => expect((screen.getByRole('button', { name: 'Undo' }) as HTMLButtonElement).disabled).toBe(true));
   });
@@ -445,7 +481,7 @@ describe('native file drops', () => {
     vi.mocked(bridge.openImage).mockResolvedValue(image());
     vi.mocked(bridge.droppedImage).mockRejectedValue(new Error('Drop one image at a time.'));
     render(App);
-    await fireEvent.click(screen.getByRole('button', { name: 'Open image' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Open an image' }));
     await waitFor(() => expect(screen.getByLabelText('test.png, 2 by 1 pixels')).toBeTruthy());
     vi.mocked(listen).mock.calls.find(call => call[0] === 'shell-file-drop')![1]({ event: 'shell-file-drop', id: 0, payload: null });
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Drop one image at a time.'));
@@ -457,7 +493,7 @@ describe('file output with the real editing core', () => {
   async function openAndDraw() {
     vi.mocked(bridge.openImage).mockResolvedValue(image());
     render(App);
-    await fireEvent.click(screen.getByRole('button', { name: 'Open image' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Open an image' }));
     await waitFor(() => expect(screen.getByLabelText('test.png, 2 by 1 pixels')).toBeTruthy());
     const viewport = screen.getByRole('region', { name: 'Image viewport' });
     Object.assign(viewport, { setPointerCapture: vi.fn(), hasPointerCapture: () => true, releasePointerCapture: vi.fn() });
@@ -474,7 +510,7 @@ describe('file output with the real editing core', () => {
   it('blocks raster transforms for an imported editable image', async () => {
     vi.mocked(bridge.openImage).mockResolvedValue({ ...image(), editable: true });
     render(App);
-    await fireEvent.click(screen.getByRole('button', { name: 'Open image' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Open an image' }));
     await waitFor(() => expect(screen.getByLabelText('test.png, 2 by 1 pixels')).toBeTruthy());
     expect((screen.getByRole('button', { name: 'Apply' }) as HTMLButtonElement).disabled).toBe(true);
   });
@@ -512,7 +548,7 @@ describe('file output with the real editing core', () => {
     await openAndDraw();
     await fireEvent.keyDown(window, { key: 's', ctrlKey: true });
     await waitFor(() => expect(bridge.saveImage).toHaveBeenCalledOnce());
-    await waitFor(() => expect((screen.getByRole('button', { name: 'Open image' }) as HTMLButtonElement).disabled).toBe(false));
+    await waitFor(() => expect(screen.queryByText('Loading image…')).toBeNull());
     expect(screen.getByLabelText('test.png, 2 by 1 pixels')).toBeTruthy();
     await fireEvent.keyDown(window, { key: 's', ctrlKey: true });
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Disk full'));
@@ -525,7 +561,7 @@ describe('capture from the editor', () => {
   const PROMPT = ['Save…', 'Discard', 'Cancel'];
   async function openImage() {
     vi.mocked(bridge.openImage).mockResolvedValueOnce(image());
-    await fireEvent.click(screen.getByRole('button', { name: 'Open image' }));
+    await fireEvent.keyDown(window, { key: 'o', ctrlKey: true });
     await waitFor(() => expect(screen.getByLabelText('test.png, 2 by 1 pixels')).toBeTruthy());
     const viewport = screen.getByRole('region', { name: 'Image viewport' });
     Object.assign(viewport, { setPointerCapture: vi.fn(), hasPointerCapture: () => true, releasePointerCapture: vi.fn() });
@@ -608,8 +644,8 @@ describe('capture from the editor', () => {
     vi.mocked(bridge.droppedImage).mockResolvedValue(image('dropped.png'));
     vi.mocked(bridge.openImage).mockResolvedValue(image('opened.png'));
     const cases: [string, () => unknown, () => unknown][] = [
-      ['open', () => fireEvent.click(screen.getByRole('button', { name: 'Open image' })), () => bridge.openImage],
-      ['paste', () => fireEvent.click(screen.getByRole('button', { name: 'Paste image' })), () => bridge.pasteImage],
+      ['open', () => fireEvent.keyDown(window, { key: 'o', ctrlKey: true }), () => bridge.openImage],
+      ['paste', () => fireEvent.keyDown(window, { key: 'v', ctrlKey: true }), () => bridge.pasteImage],
       ['native drop', () => vi.mocked(listen).mock.calls.find(call => call[0] === 'shell-file-drop')![1]({ event: 'shell-file-drop', id: 0, payload: null }), () => bridge.droppedImage],
     ];
     vi.mocked(bridge.openImage).mockClear();

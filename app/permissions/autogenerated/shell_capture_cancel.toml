@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-shell-capture-cancel"
+description = "Enables the shell_capture_cancel command without any pre-configured scope."
+commands.allow = ["shell_capture_cancel"]
+
+[[permission]]
+identifier = "deny-shell-capture-cancel"
+description = "Denies the shell_capture_cancel command without any pre-configured scope."
+commands.deny = ["shell_capture_cancel"]
