@@ -223,6 +223,9 @@ fn polyline(points: &[(f64, f64)], closed: bool) -> Path {
 fn stamp_paths(stamp: &Stamp) -> Vec<PaintedPath> {
     let mut out = Vec::new();
     let color = match stamp.stamp.as_str() {
+        "signal-check" => Color::rgb(20, 112, 98),
+        "signal-alert" => Color::rgb(155, 73, 12),
+        "signal-spark" => Color::rgb(98, 69, 170),
         "approved" => Color::rgb(28, 158, 89),
         "rejected" => Color::rgb(222, 57, 70),
         "question" => Color::rgb(31, 111, 235),
@@ -239,6 +242,57 @@ fn stamp_paths(stamp: &Stamp) -> Vec<PaintedPath> {
     fill(&mut out, circle(Point::new(0.0, 0.0), 1.0), color);
     let white = Color::rgb(255, 255, 255);
     match stamp.stamp.as_str() {
+        // Signal set, drawn specifically for ScribbleCap. A dashed inner frame
+        // and offset motif form a new badge design; no reference artwork used.
+        "signal-check" | "signal-alert" | "signal-spark" => {
+            for (a, b) in [
+                ((-0.62, -0.15), (-0.62, -0.42)),
+                ((-0.62, -0.42), (-0.35, -0.62)),
+                ((0.35, 0.62), (0.62, 0.42)),
+                ((0.62, 0.42), (0.62, 0.15)),
+            ] {
+                stroke(&mut out, polyline(&[a, b], false), white, 0.07, true);
+            }
+            match stamp.stamp.as_str() {
+                "signal-check" => {
+                    stroke(
+                        &mut out,
+                        polyline(&[(-0.36, 0.02), (-0.05, 0.32), (0.42, -0.24)], false),
+                        white,
+                        0.14,
+                        true,
+                    );
+                    fill(&mut out, circle(Point::new(0.43, -0.43), 0.07), white);
+                }
+                "signal-alert" => {
+                    stroke(
+                        &mut out,
+                        polyline(&[(-0.08, -0.42), (0.08, 0.09)], false),
+                        white,
+                        0.15,
+                        true,
+                    );
+                    fill(&mut out, circle(Point::new(0.15, 0.36), 0.09), white);
+                }
+                _ => fill(
+                    &mut out,
+                    polyline(
+                        &[
+                            (0.0, -0.48),
+                            (0.12, -0.12),
+                            (0.46, 0.0),
+                            (0.12, 0.13),
+                            (0.0, 0.49),
+                            (-0.12, 0.13),
+                            (-0.46, 0.0),
+                            (-0.12, -0.12),
+                        ],
+                        true,
+                    ),
+                    white,
+                ),
+            }
+        }
         "approved" => stroke(
             &mut out,
             polyline(&[(-0.47, 0.0), (-0.12, 0.35), (0.48, -0.35)], false),

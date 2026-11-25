@@ -114,21 +114,26 @@ scheduled alongside the tasks below (D1–D3 and D6a can start now)._
   Core runs in the UI as WebAssembly ([decision 0011](decisions/0011-core-in-the-ui.md));
   behaviour and protocol: [editor.md](editor.md). Includes design-review D4 (layout)
   and D7 (cursors and panning).
-- [ ] **M2-3 Marker and highlighter.** Deps: M1-3.
+- [x] **M2-3 Marker and highlighter.** Deps: M1-3. Core-filtered strokes,
+  selection/move, translucent highlighter and undo; see [editor-tools.md](editor-tools.md).
 - [ ] **M2-4 Text**: plain, bubble, label attached to a shape.
-- [ ] **M2-5 Colour and size pickers**, keyboard shortcuts for every tool.
+- [x] **M2-5 Colour and size pickers**, keyboard shortcuts for every tool.
+  Includes native menus and selected-annotation styling; see [editor-tools.md](editor-tools.md).
 - [x] **M2-6 Undo/redo** for every operation. Snapshot history in `core`; see
   [editor.md](editor.md#undo-and-redo).
 - [~] **M2-7 Crop, resize, expand canvas, rotate/flip.**
   Raster operations implemented and tested; annotation transforms and undo
   integration remain. See [canvas-transforms.md](canvas-transforms.md).
-- [ ] **M2-8 Pixelate and redact** (destructive; original replaced in stored resource).
+- [x] **M2-8 Pixelate and redact** (destructive; original replaced in stored resource).
+  Background-only privacy edits preserve annotations and session undo;
+  extraction regression tests cover current-resource-only saves. See [decision 0017](decisions/0017-background-privacy-session-undo.md).
 - [~] **M2-9 Copy, drag-out, save / save as** in every supported format.
   Current annotations render through core. Save writes an editable PNG and never
   replaces an opened photo; Export writes a flat PNG, JPEG, WebP, TIFF, BMP or GIF.
   Atomic writes, native drag-out and binary pixel requests (decision 0014) implemented. Desktop clipboard,
   dialogs and drag delivery smoke checks remain on all three OSes; see [app-shell.md](app-shell.md).
-- [ ] **M2-10 Stamps and step counters.** New artwork (no Skitch assets).
+- [x] **M2-10 Stamps and step counters.** Newly authored Signal vector set,
+  placement, resize, renumbering, undo and rendering golden; see [editor-tools.md](editor-tools.md).
 
 ## M3 — _moved to M6 (PDF annotation after the first release)_
 
@@ -160,7 +165,10 @@ scheduled alongside the tasks below (D1–D3 and D6a can start now)._
   Implemented by `.github/workflows/release.yml`; see [releases.md](releases.md).
   The first live tagged build and installer smoke checks remain to be recorded.
 - [ ] **M5-2 Settings**, light/dark theme, HiDPI checks.
-- [ ] **M5-3 Accessibility pass** (keyboard-only, screen-reader labels).
+- [~] **M5-3 Accessibility pass** (keyboard-only, screen-reader labels).
+  Keyboard creation/selection/resizing, tool navigation, labels and announcements
+  implemented and tested. Native screen-reader and OS menu smoke checks remain;
+  see [editor-tools.md](editor-tools.md#keyboard-and-screen-reader-access-m5-3).
 - [x] **M5-4 CLI**: `annotate`, `render`, `convert` with docs and examples ([cli.md](cli.md)).
 
 ## M6 — After first release: HEIF/AVIF, SVG, PDF

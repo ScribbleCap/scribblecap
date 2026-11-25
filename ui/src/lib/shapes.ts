@@ -3,11 +3,11 @@
 // parameters a drag produces and whether a point is on a shape.
 import type { Box, Pt, Shape } from './core';
 
-export type Tool = 'select' | 'arrow' | 'line' | 'rectangle' | 'roundedRectangle' | 'ellipse';
+export type Tool = 'select' | 'arrow' | 'line' | 'rectangle' | 'roundedRectangle' | 'ellipse' | 'marker' | 'highlighter' | 'stamp' | 'step';
 export type Handle = 'start' | 'end' | 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
 
 /** One key per tool; also listed in docs/editor.md. */
-export const TOOL_KEYS: Record<string, Tool> = { v: 'select', a: 'arrow', l: 'line', r: 'rectangle', u: 'roundedRectangle', o: 'ellipse' };
+export const TOOL_KEYS: Record<string, Tool> = { v: 'select', a: 'arrow', l: 'line', r: 'rectangle', u: 'roundedRectangle', o: 'ellipse', m: 'marker', h: 'highlighter', s: 'stamp', n: 'step' };
 
 export interface Style { color: string; width: number }
 export const DEFAULT_STYLE: Style = { color: '#e5194a', width: 6 };
@@ -17,6 +17,9 @@ const CORNER_RADIUS_FACTOR = 2.5;
 /** Shape a drag from `from` to `to` produces with a drawing tool. */
 export function create(tool: Exclude<Tool, 'select'>, from: Pt, to: Pt, style: Style): Shape {
   switch (tool) {
+    case 'stamp': return { kind: 'stamp', center: to, stamp: 'signal-check', diameter: style.width * 8 };
+    case 'step': return { kind: 'step', center: to, number: 1, color: style.color, diameter: style.width * 8 };
+    case 'marker': case 'highlighter': return { kind: 'freehand', tool, points: [from, to], color: style.color.slice(0, 7) + (tool === 'highlighter' ? '66' : ''), width: style.width * (tool === 'highlighter' ? 4 : 1) };
     case 'arrow': return { kind: 'arrow', start: from, end: to, color: style.color, width: style.width * ARROW_WIDTH_FACTOR };
     case 'line': return { kind: 'line', start: from, end: to, color: style.color, width: style.width };
     case 'rectangle': return { kind: 'rectangle', rect: boxFrom(from, to), stroke: style.color, width: style.width };
@@ -31,11 +34,15 @@ export function boxFrom(a: Pt, b: Pt): Box {
 }
 
 export function translate(shape: Shape, dx: number, dy: number): Shape {
+  if ('center' in shape) return { ...shape, center: [shape.center[0] + dx, shape.center[1] + dy] };
+  if (shape.kind === 'freehand') return { ...shape, points: shape.points.map(([x, y]) => [x + dx, y + dy]) };
   if ('rect' in shape) { const [x, y, w, h] = shape.rect; return { ...shape, rect: [x + dx, y + dy, w, h] }; }
   return { ...shape, start: [shape.start[0] + dx, shape.start[1] + dy], end: [shape.end[0] + dx, shape.end[1] + dy] };
 }
 
 export function handles(shape: Shape): { handle: Handle; at: Pt }[] {
+  if ('center' in shape) return [{ handle: 'e', at: [shape.center[0] + shape.diameter / 2, shape.center[1]] }];
+  if (shape.kind === 'freehand') return [];
   if (!('rect' in shape)) return [{ handle: 'start', at: shape.start }, { handle: 'end', at: shape.end }];
   const [x, y, w, h] = shape.rect, cx = x + w / 2, cy = y + h / 2;
   return [
@@ -46,6 +53,8 @@ export function handles(shape: Shape): { handle: Handle; at: Pt }[] {
 
 /** Move one handle to `to`. Boxes stay normalised when dragged past the far edge. */
 export function dragHandle(shape: Shape, handle: Handle, to: Pt): Shape {
+  if ('center' in shape) return { ...shape, diameter: Math.max(2, 2 * Math.hypot(to[0] - shape.center[0], to[1] - shape.center[1])) };
+  if (shape.kind === 'freehand') return shape;
   if (!('rect' in shape)) return handle === 'start' ? { ...shape, start: to } : handle === 'end' ? { ...shape, end: to } : shape;
   const [x, y, w, h] = shape.rect;
   let x0 = x, y0 = y, x1 = x + w, y1 = y + h;
@@ -58,6 +67,8 @@ export function dragHandle(shape: Shape, handle: Handle, to: Pt): Shape {
 
 /** Whether `p` is on the shape, within `tolerance` image pixels of its outline. */
 export function hitTest(shape: Shape, p: Pt, tolerance: number): boolean {
+  if ('center' in shape) return Math.hypot(p[0] - shape.center[0], p[1] - shape.center[1]) <= shape.diameter / 2 + tolerance;
+  if (shape.kind === 'freehand') return shape.points.some((point, i) => distanceToSegment(p, i ? shape.points[i - 1] : point, point) <= shape.width / 2 + tolerance);
   if (!('rect' in shape)) return distanceToSegment(p, shape.start, shape.end) <= shape.width / 2 + tolerance;
   const [x, y, w, h] = shape.rect, band = shape.width / 2 + tolerance;
   if (shape.kind === 'ellipse') {
@@ -81,4 +92,32 @@ function distanceToSegment(p: Pt, a: Pt, b: Pt): number {
   const dx = b[0] - a[0], dy = b[1] - a[1], length = dx * dx + dy * dy;
   const t = length === 0 ? 0 : Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / length));
   return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
+}
+
+/** Apply the chosen tool style to an existing annotation. */
+export function restyle(shape: Shape, style: Style): Shape {
+  if (shape.kind === 'stamp') return { ...shape, diameter: style.width * 8 };
+  if (shape.kind === 'step') return { ...shape, color: style.color, diameter: style.width * 8 };
+  if (shape.kind === 'freehand') return { ...shape, color: style.color + (shape.tool === 'highlighter' ? '66' : ''), width: style.width * (shape.tool === 'highlighter' ? 4 : 1) };
+  if ('stroke' in shape) return { ...shape, stroke: style.color, width: style.width };
+  return { ...shape, color: style.color, width: style.width * (shape.kind === 'arrow' ? 2 : 1) };
+}
+
+/** Bounds of editable parameters, for keyboard resizing (painting stays in core). */
+export function bounds(shape: Shape): Box {
+  if ('rect' in shape) return shape.rect;
+  if ('center' in shape) return [shape.center[0] - shape.diameter / 2, shape.center[1] - shape.diameter / 2, shape.diameter, shape.diameter];
+  const points = shape.kind === 'freehand' ? shape.points : [shape.start, shape.end];
+  const xs = points.map(p => p[0]), ys = points.map(p => p[1]);
+  const x = Math.min(...xs), y = Math.min(...ys);
+  return [x, y, Math.max(...xs) - x, Math.max(...ys) - y];
+}
+
+export function resizeShape(shape: Shape, width: number, height: number): Shape {
+  const [x, y, w, h] = bounds(shape);
+  const point = ([px, py]: Pt): Pt => [x + (px - x) * width / (w || 1), y + (py - y) * height / (h || 1)];
+  if ('rect' in shape) return { ...shape, rect: [x, y, width, height] };
+  if ('center' in shape) return { ...shape, diameter: width, center: [x + width / 2, y + width / 2] };
+  if (shape.kind === 'freehand') return { ...shape, points: shape.points.map(point) };
+  return { ...shape, start: point(shape.start), end: point(shape.end) };
 }

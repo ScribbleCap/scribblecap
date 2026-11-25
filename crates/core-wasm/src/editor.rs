@@ -20,6 +20,8 @@ pub struct Editor {
 enum Request {
     /// Start a new document of the given canvas size (the background image size).
     Reset { canvas: Size },
+    /// Session-only background identity, tracked by the ordinary undo history.
+    SetBackgroundRevision { revision: u32 },
     /// Append a new element on top; responds with its id and paths.
     Add { shape: Shape },
     /// Replace an element's shape, keeping its id and stacking position.
@@ -28,6 +30,9 @@ enum Request {
     Remove { id: ElementId },
     /// Paths for every element, bottom-most first.
     Paint,
+    FilterPoints {
+        points: Vec<scribblecap_core::Point>,
+    },
     /// The document as saved JSON (`docs/file-format.md`).
     Document,
     /// End an undoable step: record the document if it changed since the last step.
@@ -79,6 +84,29 @@ impl Editor {
 
     fn apply(&mut self, request: Request) -> Result<Value, String> {
         match request {
+            Request::SetBackgroundRevision { revision } => {
+                let id = scribblecap_core::ResourceId(format!("session-background-{revision}"));
+                self.document.background = Some(scribblecap_core::Background {
+                    resource: id.clone(),
+                    origin: scribblecap_core::Point::new(0.0, 0.0),
+                });
+                self.document.resources = vec![scribblecap_core::Resource {
+                    id,
+                    media_type: "image/png".into(),
+                }];
+                Ok(Value::Null)
+            }
+            Request::FilterPoints { points } => {
+                if points.is_empty()
+                    || points.len() > 8192
+                    || points.iter().any(|p| {
+                        !p.x.is_finite() || !p.y.is_finite() || p.x.abs() > 1e9 || p.y.abs() > 1e9
+                    })
+                {
+                    return Err("Invalid stroke points".into());
+                }
+                Ok(json!(scribblecap_core::geometry::filter_points(&points)))
+            }
             Request::Reset { canvas } => {
                 let document = Document::new(canvas);
                 document.validate().map_err(|e| e.to_string())?;
@@ -133,11 +161,16 @@ impl Editor {
                 let state = self.history.redo();
                 self.restore(state)
             }
-            Request::Document => self
-                .document
-                .to_json()
-                .map(Value::String)
-                .map_err(|e| e.to_string()),
+            Request::Document => {
+                // Runtime background identities participate in undo, never in output.
+                let mut document = self.document.clone();
+                document.background = None;
+                document.resources.clear();
+                document
+                    .to_json()
+                    .map(Value::String)
+                    .map_err(|e| e.to_string())
+            }
         }
     }
 
@@ -160,6 +193,7 @@ impl Editor {
             None => Value::Null,
         };
         Ok(json!({
+            "backgroundRevision": self.document.background.as_ref().and_then(|b| b.resource.0.strip_prefix("session-background-")).and_then(|r|r.parse::<u32>().ok()).unwrap_or(0),
             "elements": elements,
             "canUndo": self.history.can_undo(),
             "canRedo": self.history.can_redo(),
@@ -231,6 +265,54 @@ mod tests {
 
     fn arrow() -> Value {
         json!({ "kind": "arrow", "start": [10, 10], "end": [120, 80], "color": "#e5194a", "width": 8 })
+    }
+
+    #[test]
+    fn background_revision_is_undoable_without_changing_annotations_or_saved_metadata() {
+        let mut editor = Editor::default();
+        ok(&mut editor, json!({"op":"reset","canvas":[200,100]}));
+        ok(&mut editor, json!({"op":"add","shape":arrow()}));
+        ok(&mut editor, json!({"op":"commit"}));
+        ok(
+            &mut editor,
+            json!({"op":"setBackgroundRevision","revision":1}),
+        );
+        ok(&mut editor, json!({"op":"commit"}));
+        let saved = ok(&mut editor, json!({"op":"document"}));
+        let doc = Document::from_json(saved.as_str().unwrap()).unwrap();
+        assert!(doc.background.is_none() && doc.resources.is_empty());
+        assert_eq!(doc.elements.len(), 1);
+        let undo = ok(&mut editor, json!({"op":"undo"}));
+        assert_eq!(undo["backgroundRevision"], 0);
+        assert_eq!(undo["elements"].as_array().unwrap().len(), 1);
+        let empty = ok(&mut editor, json!({"op":"undo"}));
+        assert_eq!(empty["elements"].as_array().unwrap().len(), 0);
+        ok(&mut editor, json!({"op":"redo"}));
+        assert_eq!(
+            ok(&mut editor, json!({"op":"redo"}))["backgroundRevision"],
+            1
+        );
+    }
+
+    #[test]
+    fn filter_points_is_bounded_and_uses_core_smoothing() {
+        let mut editor = Editor::default();
+        let points = ok(
+            &mut editor,
+            json!({"op":"filterPoints","points":[[0,0],[20,10],[40,0]]}),
+        );
+        assert!(points.as_array().unwrap().len() > 3);
+        assert_eq!(
+            points.as_array().unwrap().last().unwrap(),
+            &json!([40.0, 0.0])
+        );
+        for points in [json!([]), json!([[1e100, 0]]), json!(vec![[0, 0]; 8193])] {
+            assert!(
+                editor
+                    .handle(&json!({"op":"filterPoints","points":points}).to_string())
+                    .contains("error")
+            );
+        }
     }
 
     #[test]

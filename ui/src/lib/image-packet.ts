@@ -1,6 +1,7 @@
 export interface LoadedImage {
   name: string;
   editable?: boolean;
+  privacyRevision?: number;
   width: number;
   height: number;
   pixels: Uint8ClampedArray<ArrayBuffer>;

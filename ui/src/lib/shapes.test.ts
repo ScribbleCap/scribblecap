@@ -3,6 +3,14 @@ import type { Shape } from './core';
 import { boxFrom, create, dragHandle, handles, hitTest, topmostAt, translate, DEFAULT_STYLE } from './shapes';
 
 describe('shape editing', () => {
+  it('keeps freehand strokes selectable and movable with translucent highlighter colour', () => {
+    const marker = create('marker', [0, 0], [20, 10], DEFAULT_STYLE);
+    expect(marker).toMatchObject({ kind: 'freehand', tool: 'marker', width: 6 });
+    expect(create('highlighter', [0, 0], [20, 10], DEFAULT_STYLE)).toMatchObject({ color: '#e5194a66', width: 24 });
+    expect(hitTest(marker, [10, 5], 1)).toBe(true);
+    expect(hitTest(marker, [0, 50], 1)).toBe(false);
+    expect(translate(marker, 5, 2)).toMatchObject({ points: [[5, 2], [25, 12]] });
+  });
   it('creates every tool shape from a drag in any direction', () => {
     expect(boxFrom([50, 40], [10, 10])).toEqual([10, 10, 40, 30]);
     expect(create('arrow', [0, 0], [10, 5], DEFAULT_STYLE)).toMatchObject({ kind: 'arrow', start: [0, 0], end: [10, 5] });

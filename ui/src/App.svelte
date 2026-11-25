@@ -1,15 +1,20 @@
 <script lang="ts">
+  import fontLicense from './licenses/NotoSans-OFL.txt?raw';
   import { onMount, onDestroy } from 'svelte';
   import { listen } from '@tauri-apps/api/event';
   import * as bridge from './lib/bridge';
+  import AnnotationControls from './lib/AnnotationControls.svelte';
+  import PrivacyControls from './lib/PrivacyControls.svelte';
+  import StyleControls from './lib/StyleControls.svelte';
   import CanvasControls from './lib/CanvasControls.svelte';
   import { loadCore, type Core, type Pt, type Shape, type WirePath } from './lib/core';
   import type { LoadedImage } from './lib/image-packet';
-  import { create, dragHandle, handles, topmostAt, translate, DEFAULT_STYLE, TOOL_KEYS, type Handle, type Tool } from './lib/shapes';
+  import { create, dragHandle, handles, topmostAt, translate, DEFAULT_STYLE, restyle, resizeShape, boxFrom, TOOL_KEYS, type Handle, type Tool } from './lib/shapes';
   import { fitViewport, actualSize, zoomAt, panBy, MAX_ZOOM, MIN_ZOOM, type Viewport, type Size } from './lib/viewport';
 
   interface Item { id: string; shape: Shape; paths: WirePath[] }
   type Gesture =
+    | { kind: 'privacy'; id: number; from: Pt; to: Pt; operation: 'pixelate' | 'redact' }
     | { kind: 'pan'; id: number; x: number; y: number }
     | { kind: 'create'; id: number; element: string; tool: Exclude<Tool, 'select'>; from: Pt; sx: number; sy: number; moved: boolean }
     | { kind: 'move'; id: number; element: string; from: Pt; original: Shape }
@@ -18,6 +23,10 @@
   const mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
   const mod = mac ? '⌘' : 'Ctrl+';
   const TOOLS: { tool: Tool; label: string; key: string; icon: string }[] = [
+    { tool: 'stamp', label: 'Stamp', key: 'S', icon: 'M5 20h14M7 16v-5l3-3V4h4v4l3 3v5z' },
+    { tool: 'step', label: 'Step counter', key: 'N', icon: 'M12 3a9 9 0 100 18 9 9 0 000-18M10 9l2-2v10M10 17h4' },
+    { tool: 'marker', label: 'Marker', key: 'M', icon: 'M3 19l5 2L21 8l-5-5zM12 7l5 5' },
+    { tool: 'highlighter', label: 'Highlighter', key: 'H', icon: 'M3 21h10M5 17l6-12 8 4-6 12z' },
     { tool: 'select', label: 'Select', key: 'V', icon: 'M5 3l13 8-6 1.5L9 19z' },
     { tool: 'arrow', label: 'Arrow', key: 'A', icon: 'M4 20L18 6M10 5h9v9' },
     { tool: 'line', label: 'Line', key: 'L', icon: 'M4 20L20 4' },
@@ -35,6 +44,7 @@
   let stage: HTMLDivElement;
   let canvas = $state<HTMLCanvasElement>();
   let fileInput: HTMLInputElement;
+  let notices: HTMLDialogElement;
   let busy = $state(false);
   let error = $state('');
   let outputStatus = $state('');
@@ -50,6 +60,9 @@
   let tileColor = '';
   let core: Core | null = null;
   let tool = $state<Tool>('arrow');
+  let style = $state({ ...DEFAULT_STYLE });
+  let stamp = $state('signal-check');
+  let privacyMode = $state<'pixelate' | 'redact' | null>(null);
   let items = $state.raw<Item[]>([]);
   let selected = $state<string | null>(null);
   let gesture = $state.raw<Gesture | null>(null);
@@ -85,6 +98,28 @@
       document.title = `${next.name} — ScribbleCap`;
     } catch (cause) {
       if (alive) error = cause instanceof Error ? cause.message : String(cause);
+    } finally { if (alive) busy = false; }
+  }
+  function rasterCanvas(next: LoadedImage): HTMLCanvasElement {
+    const result = document.createElement('canvas'); result.width = next.width; result.height = next.height;
+    const context = result.getContext('2d'); if (!context) throw new Error('The image canvas could not be created.');
+    context.putImageData(new ImageData(next.pixels,next.width,next.height),0,0); return result;
+  }
+  async function privacyEdit(rect: [number, number, number, number], operation: 'pixelate' | 'redact') {
+    if (!bridge.desktop || !image || !core || busy || gesture) return;
+    busy = true; error = '';
+    const previous = image.privacyRevision ?? 0;
+    let changed = false;
+    try {
+      const next = await bridge.privacyImage(image, rect, operation); changed = true;
+      if (!alive) return;
+      const nextSource = rasterCanvas(next);
+      core.setBackgroundRevision(next.privacyRevision!); commit();
+      source = nextSource; image = next;
+      outputStatus = `${operation} applied to background. Annotations remain editable; Undo restores the previous background.`;
+    } catch (cause) {
+      if (changed) await bridge.restorePrivacy(previous).catch(report);
+      report(cause);
     } finally { if (alive) busy = false; }
   }
   function openImage() {
@@ -171,7 +206,11 @@
   }
   function removeSelected() {
     if (busy || !core || !selected) return;
-    try { core.remove(selected); items = items.filter(item => item.id !== selected); selected = null; }
+    try {
+      core.remove(selected); items = items.filter(item => item.id !== selected); selected = null;
+      let number = 0;
+      for (const item of items) if (item.shape.kind === 'step') apply(item.id, { ...item.shape, number: ++number });
+    }
     catch (cause) { report(cause); }
   }
   /** End an undoable step. Every finished edit calls this; unchanged steps are dropped. */
@@ -179,22 +218,73 @@
     if (!core) return;
     try { ({ canUndo, canRedo } = core.commit()); } catch (cause) { report(cause); }
   }
-  function travel(direction: 'undo' | 'redo') {
-    if (!core || !image || gesture) return;
+  async function travel(direction: 'undo' | 'redo') {
+    if (!core || !image || gesture || busy) return;
+    busy = true;
+    let changed = false;
+    const previousRevision = image.privacyRevision ?? 0;
+    let backgroundChanged = false;
     try {
       const restored = direction === 'undo' ? core.undo() : core.redo();
-      ({ canUndo, canRedo } = restored);
+      changed = !!restored.elements;
       if (!restored.elements) return;
-      items = restored.elements;
+      if (restored.backgroundRevision !== (image.privacyRevision ?? 0)) {
+        const next = await bridge.restorePrivacy(restored.backgroundRevision);
+        backgroundChanged = true;
+        if (!alive) return;
+        source = rasterCanvas(next); image = next;
+      }
+      ({ canUndo, canRedo } = restored); items = restored.elements;
+      outputStatus = direction === 'undo' && backgroundChanged
+        ? 'Undo restored earlier background pixels. Save/export/copy include them; redo the privacy edit before sharing the cleaned version.'
+        : `${direction === 'undo' ? 'Undid' : 'Redid'} edit. ${items.length} annotations`;
       if (!items.some(item => item.id === selected)) selected = null;
-    } catch (cause) { report(cause); }
+    } catch (cause) {
+      if (backgroundChanged) await bridge.restorePrivacy(previousRevision).catch(report);
+      if (changed) { const rolledBack = direction === 'undo' ? core.redo() : core.undo(); ({ canUndo,canRedo } = rolledBack); }
+      report(cause);
+    } finally { if (alive) busy = false; }
   }
   function nudge(dx: number, dy: number) {
     const item = items.find(item => item.id === selected);
     if (item) apply(item.id, translate(item.shape, dx, dy));
   }
-  function chooseTool(next: Tool) { tool = next; }
+  function chooseTool(next: Tool) { if (!gesture && !busy) { privacyMode = null; tool = next; outputStatus = `${next} tool selected`; } }
+  function changeStyle(next: typeof style) {
+    if (gesture || busy) return;
+    style = next;
+    const item = items.find(item => item.id === selected);
+    if (item) { apply(item.id, restyle(item.shape, style)); commit(); }
+  }
 
+  function newShape(chosen: Exclude<Tool, 'select'>, from: Pt, to: Pt): Shape {
+    const shape = create(chosen, from, to, style);
+    if (shape.kind === 'stamp') return { ...shape, stamp };
+    if (shape.kind === 'step') return { ...shape, number: 1 + items.filter(item => item.shape.kind === 'step').length };
+    return shape;
+  }
+  function addByKeyboard(from: Pt, to: Pt) {
+    if (!core || !image || busy || gesture || tool === 'select') return;
+    try {
+      let shape = newShape(tool, from, to);
+      if (shape.kind === 'freehand') shape = { ...shape, points: core.filterPoints(shape.points) };
+      const added = core.add(shape); items = [...items, { ...added, shape }]; selected = added.id;
+      commit(); outputStatus = `${tool} annotation added`; stage.focus();
+    } catch (cause) { report(cause); }
+  }
+  function selectByKeyboard(id: string) { selected = id; outputStatus = `Selected ${items.findIndex(item => item.id === id) + 1}`; stage.focus(); }
+  function resizeByKeyboard(width: number, height: number) {
+    const item = items.find(item => item.id === selected);
+    if (item && Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) { apply(item.id, resizeShape(item.shape, width, height)); commit(); stage.focus(); }
+  }
+  function toolbarKey(event: KeyboardEvent) {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault(); event.stopPropagation();
+    const buttons = [...(event.currentTarget as HTMLElement).querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
+    const index = buttons.indexOf(event.target as HTMLButtonElement);
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length;
+    buttons[next]?.focus(); buttons[next]?.click();
+  }
   function toImage(event: PointerEvent): Pt {
     const bounds = stage.getBoundingClientRect();
     return [(event.clientX - bounds.left - view.x) / view.scale, (event.clientY - bounds.top - view.y) / view.scale];
@@ -211,6 +301,10 @@
   }
 
   function onKey(event: KeyboardEvent) {
+    if (event.key === 'Escape' && event.target instanceof Element) {
+      const details = event.target.closest('details');
+      if (details?.open) { details.open = false; details.querySelector('summary')?.focus(); event.preventDefault(); return; }
+    }
     if (editableTarget(event.target) || event.altKey) return;
     const key = event.key.toLowerCase();
     if (event.metaKey || event.ctrlKey) {
@@ -227,7 +321,13 @@
       if (key === '1') actual();
       return;
     }
-    if (!image) return;
+    if (event.target instanceof Element && event.target.closest('button, summary, a')) return;
+    if (!image || busy) return;
+    if (key === 'p' || key === 'x') { event.preventDefault(); privacyMode = key === 'p' ? 'pixelate' : 'redact'; selected = null; return; }
+    if (event.key === '[' || event.key === ']') {
+      event.preventDefault(); const sizes = [2, 4, 6, 10, 16]; const index = sizes.indexOf(style.width);
+      changeStyle({ ...style, width: sizes[Math.max(0, Math.min(4, index + (event.key === ']' ? 1 : -1)))] }); return;
+    }
     if (event.key === ' ') { event.preventDefault(); spaceHeld = true; return; }
     if (event.key === 'Escape') { selected = null; return; }
     if ((event.key === 'Delete' || event.key === 'Backspace') && selected) { event.preventDefault(); removeSelected(); commit(); return; }
@@ -240,6 +340,7 @@
     else { view = panBy(view, -d[0] * 32, -d[1] * 32); fitted = false; }
   }
   function onKeyUp(event: KeyboardEvent) {
+    if (editableTarget(event.target)) return;
     if (event.key === ' ') spaceHeld = false;
     // Nudges held down or repeated end as one step when the arrow key is released.
     if (event.key.startsWith('Arrow')) commit();
@@ -260,6 +361,7 @@
     const id = event.pointerId;
     if (event.button === 1 || spaceHeld) { gesture = { kind: 'pan', id, x: event.clientX, y: event.clientY }; return; }
     const p = toImage(event);
+    if (privacyMode) { gesture = { kind: 'privacy', id, from: p, to: p, operation: privacyMode }; return; }
     const handle = handleAt(event);
     if (handle && selected) {
       gesture = { kind: 'resize', id, element: selected, handle, original: items.find(item => item.id === selected)!.shape };
@@ -274,7 +376,7 @@
       return;
     }
     try {
-      const shape = create(tool, p, p, DEFAULT_STYLE);
+      const shape = newShape(tool, p, p);
       const added = core.add(shape);
       items = [...items, { id: added.id, shape, paths: added.paths }];
       selected = added.id;
@@ -292,10 +394,12 @@
       return;
     }
     const p = toImage(event);
+    if (g.kind === 'privacy') { gesture = { ...g, to: p }; return; }
     if (g.kind === 'create') {
       if (!g.moved && Math.hypot(event.clientX - g.sx, event.clientY - g.sy) < CLICK) return;
       gesture = { ...g, moved: true };
-      apply(g.element, create(g.tool, g.from, p, DEFAULT_STYLE));
+      const current = items.find(item => item.id === g.element)?.shape;
+      apply(g.element, current?.kind === 'freehand' && current.points.length >= 8192 ? current : current?.kind === 'freehand' ? { ...current, points: [...current.points, p] } : newShape(g.tool, g.from, p));
     } else if (g.kind === 'move') apply(g.element, translate(g.original, p[0] - g.from[0], p[1] - g.from[1]));
     else apply(g.element, dragHandle(g.original, g.handle, p));
   }
@@ -304,15 +408,37 @@
     const g = gesture;
     gesture = null;
     if (stage.hasPointerCapture(event.pointerId)) stage.releasePointerCapture(event.pointerId);
+    if (event.type === 'pointercancel' || event.type === 'lostpointercapture') {
+      if (g.kind === 'create') removeSelected();
+      else if (g.kind === 'move' || g.kind === 'resize') apply(g.element, g.original);
+      return;
+    }
+    if (g.kind === 'privacy' && image) {
+      const [left, top, width, height] = boxFrom(g.from, g.to);
+      const x = Math.max(0, Math.floor(left)), y = Math.max(0, Math.floor(top));
+      const right = Math.min(image.width, Math.ceil(left + width)), bottom = Math.min(image.height, Math.ceil(top + height));
+      if (right > x && bottom > y && width * view.scale >= CLICK && height * view.scale >= CLICK) void privacyEdit([x, y, right - x, bottom - y], g.operation);
+      return;
+    }
     // A click without a drag draws nothing.
-    if (g.kind === 'create' && !g.moved) removeSelected();
+    if (g.kind === 'create' && !g.moved && g.tool !== 'stamp' && g.tool !== 'step') removeSelected();
+    else if (g.kind === 'create' && core) {
+      const item = items.find(item => item.id === g.element);
+      if (item?.shape.kind === 'freehand') apply(item.id, { ...item.shape, points: core.filterPoints(item.shape.points) });
+    }
     if (g.kind !== 'pan') commit();
   }
 
   onMount(() => {
     let unlisten: (() => void) | undefined;
+    let unmenu: (() => void) | undefined;
     let mounted = true;
     if (bridge.desktop) {
+      void listen<string>('shell-menu', ({ payload }) => {
+        if (editableTarget(document.activeElement) && ['undo','redo','copy','paste'].includes(payload)) { document.execCommand(payload); return; }
+        const actions: Record<string, () => void> = { open: openImage, paste: pasteImage, copy: copyImage, save: () => saveImage(), 'save-as': () => saveImage(true), export: () => saveImage(true,true), undo: () => travel('undo'), redo: () => travel('redo'), fit, actual, 'zoom-in': () => zoom(1.25), 'zoom-out': () => zoom(.8) };
+        actions[payload]?.();
+      }).then(stop => { if (mounted) unmenu = stop; else stop(); }).catch(report);
       void listen('shell-file-drop', () => { void load(bridge.droppedImage); }).then(stop => {
         if (mounted) unlisten = stop; else stop();
       }).catch(cause => { if (alive) error = String(cause); });
@@ -330,7 +456,7 @@
     const scheme = window.matchMedia?.('(prefers-color-scheme: dark)');
     const onScheme = () => { theme++; };
     scheme?.addEventListener?.('change', onScheme);
-    return () => { mounted = false; unlisten?.(); observer.disconnect(); scheme?.removeEventListener?.('change', onScheme); };
+    return () => { mounted = false; unlisten?.(); unmenu?.(); observer.disconnect(); scheme?.removeEventListener?.('change', onScheme); };
   });
   onDestroy(() => { alive = false; cancelShare(); });
 
@@ -402,6 +528,11 @@
     const half = 0.5 / ratio;
     context.strokeRect(view.x - half, view.y - half, source.width * view.scale + 2 * half, source.height * view.scale + 2 * half);
     // Selection handles in screen pixels, in the system accent colour.
+    if (gesture?.kind === 'privacy') {
+      const [x,y,w,h] = boxFrom(gesture.from,gesture.to);
+      context.fillStyle = 'rgba(0,0,0,0.45)'; context.fillRect(x,y,w,h);
+      context.strokeStyle = token('--accent', '#0a64d8'); context.lineWidth = 2 / view.scale; context.strokeRect(x,y,w,h);
+    }
     const chosen = items.find(item => item.id === selected);
     if (chosen && gesture?.kind !== 'create') {
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
@@ -431,13 +562,22 @@
       </button>
     </div>
     <CanvasControls image={transformSource} {busy} {load} />
-    <div class="tools" role="toolbar" aria-label="Tools">
+    <div class="tools" role="toolbar" tabindex="-1" aria-label="Tools" onkeydown={toolbarKey}>
       {#each TOOLS as t (t.tool)}
-        <button class="tool" aria-label={t.label} aria-pressed={tool === t.tool} title={`${t.label} (${t.key})`} disabled={!image || busy} onclick={() => chooseTool(t.tool)}>
+        <button class="tool" tabindex={tool === t.tool ? 0 : -1} aria-keyshortcuts={t.key} aria-label={t.label} aria-pressed={tool === t.tool} title={`${t.label} (${t.key})`} disabled={!image || busy} onclick={() => chooseTool(t.tool)}>
           <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d={t.icon} fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
         </button>
       {/each}
     </div>
+    <label class="compact-tools">Tool <select value={tool} disabled={!image || busy} onchange={(event) => chooseTool(event.currentTarget.value as Tool)}>{#each TOOLS as t (t.tool)}<option value={t.tool}>{t.label} ({t.key})</option>{/each}</select></label>
+    <AnnotationControls {items} {selected} {tool} disabled={!image || busy || !!gesture} add={addByKeyboard} select={selectByKeyboard} resize={resizeByKeyboard} />
+    {#if tool === 'stamp'}<label class="stamp-choice">Stamp artwork <select bind:value={stamp}><option value="signal-check">Signal check</option><option value="signal-alert">Signal alert</option><option value="signal-spark">Signal spark</option></select></label>{/if}
+    <div class="privacy-tools" aria-label="Privacy tools">
+      <button aria-pressed={privacyMode === 'pixelate'} disabled={!image || busy || !bridge.desktop} title="Pixelate (P)" onclick={() => { privacyMode = 'pixelate'; selected = null; }}>Pixelate</button>
+      <button aria-pressed={privacyMode === 'redact'} disabled={!image || busy || !bridge.desktop} title="Redact (X)" onclick={() => { privacyMode = 'redact'; selected = null; }}>Redact</button>
+    </div>
+    <PrivacyControls {image} disabled={busy || !!gesture || !bridge.desktop} apply={privacyEdit} />
+    <StyleControls {style} disabled={!image || busy || !!gesture} change={changeStyle} />
     <details class="share-actions"><summary>Share</summary><div>
       <button onclick={copyImage} disabled={!image || busy} title={`Copy image (${mod}C)`}>Copy image</button>
       <button onclick={() => saveImage()} disabled={!image || busy} title={`Save (${mod}S)`}>Save image</button>
@@ -445,10 +585,11 @@
       <button onclick={() => saveImage(true, true)} disabled={!image || busy}>Export flat…</button>
     </div></details>
   </header>
+  {#if privacyMode}<p class="privacy-notice">{privacyMode === 'redact' ? 'Redact' : 'Pixelate'}: drag a region to replace background pixels. Annotations stay editable and session undo remains available. Save the current cleaned version; existing files are unchanged.</p>{/if}
   {#if error}<div class="error" role="alert"><span>{error}</span><button onclick={() => error = ''} aria-label="Dismiss error">×</button></div>{/if}
   <div class="workspace">
     <!-- svelte-ignore a11y_no_noninteractive_tabindex (The viewport is focusable for keyboard editing and panning; toolbar buttons provide zoom.) -->
-    <div class="viewport" bind:this={stage} role="region" aria-label="Image viewport" aria-describedby="viewport-help" tabindex="0" style:cursor={image ? cursor : undefined} onwheel={onWheel} onpointerdown={down} onpointermove={move} onpointerup={up} onpointercancel={up} onlostpointercapture={up} onpointerleave={() => hovering = false}>
+    <div class="viewport" bind:this={stage} role="region" aria-label="Image viewport" aria-describedby="viewport-help annotation-help" tabindex="0" style:cursor={image ? cursor : undefined} onwheel={onWheel} onpointerdown={down} onpointermove={move} onpointerup={up} onpointercancel={up} onlostpointercapture={up} onpointerleave={() => hovering = false}>
       {#if image}<canvas bind:this={canvas} aria-label={`${image.name}, ${image.width} by ${image.height} pixels`}></canvas>
       {:else}
         <div class="empty-state">
@@ -460,14 +601,16 @@
         </div>
       {/if}
     </div>
-    {#if outputStatus}<div class="output-status" role="status">{outputStatus}</div>{/if}
+    <div class:output-status={!!outputStatus} role="status" aria-live="polite">{outputStatus}</div>
     {#if image && bridge.desktop}<button class="drag-out" disabled={busy} style:left={`${Math.max(8, Math.min(area.width - 120, view.x + image.width * view.scale - 112))}px`} style:top={`${Math.max(8, Math.min(area.height - 48, view.y + image.height * view.scale))}px`} onpointerdown={(event) => { if (event.button === 0) { event.preventDefault(); dragImage(); } }} onclick={(event) => { if (event.detail === 0) copyImage(); }} aria-label="Drag image out; Enter copies the image" title="Drag this image into another app; Enter copies"><img src={thumbnail} alt="" draggable="false" /><span>Drag out</span></button>{/if}
+    <span class="visually-hidden" aria-live="polite">{items.length} annotations. {selected ? `Selected annotation ${items.findIndex(item => item.id === selected) + 1}` : 'No annotation selected'}.</span>
     {#if busy}<div class="loading" role="status">Loading image…</div>{/if}
   </div>
   <footer class="statusbar">
     <span class="file-info" title={image?.name}>{image ? image.name : 'No image open'}</span>
     {#if image}<span class="dimensions">{image.width.toLocaleString()} × {image.height.toLocaleString()} px</span>{/if}
-    <span id="viewport-help" class="visually-hidden">{image ? 'Drag to draw with the current tool. Hold Space or use the middle button to pan. Arrow keys move the selection.' : `${mod}O to open, ${mod}V to paste.`}</span>
+    <span id="viewport-help" class="visually-hidden">{image ? 'Drag to draw. Privacy tools edit the background and keep session undo. Use Annotations for keyboard creation, selection and resizing; Privacy for numeric regions. Hold Space to pan. Arrow keys move the selection.' : `${mod}O to open, ${mod}V to paste.`}</span>
+    <button class="notices-link" onclick={() => notices.showModal()}>Third-party notices</button>
     <div class="zoom-actions" aria-label="Zoom controls">
       <button onclick={fit} disabled={!image} title={`Fit image (${mod}0)`}>Fit</button>
       <button class="square" onclick={() => zoom(0.8)} disabled={!image || view.scale <= MIN_ZOOM} aria-label="Zoom out">−</button>
@@ -475,14 +618,24 @@
       <button class="square" onclick={() => zoom(1.25)} disabled={!image || view.scale >= MAX_ZOOM} aria-label="Zoom in">＋</button>
     </div>
   </footer>
+  <dialog bind:this={notices} aria-labelledby="notices-title">
+    <h2 id="notices-title">Third-party notices</h2>
+    <p>Noto Sans Regular is bundled under the SIL Open Font License 1.1. ScribbleCap code is MIT OR Apache-2.0; the font retains its separate licence.</p>
+    <pre>{fontLicense}</pre>
+    <form method="dialog"><button>Close notices</button></form>
+  </dialog>
   <input class="file-input" bind:this={fileInput} type="file" accept="image/png,image/jpeg,image/webp,image/tiff,image/bmp,image/gif" aria-label="Choose an image" onchange={() => { const file = fileInput.files?.[0]; if (file) void load(() => bridge.browserImage(file, file.name)); fileInput.value = ''; }} />
 </main>
 
 <style>
+  dialog { max-width: min(42rem, 92vw); max-height: 85vh; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: .6rem; }
+  dialog pre { white-space: pre-wrap; font-size: 12px; }
+  .compact-tools { display: none; }
+  @media (max-width: 1250px) { .tools { display: none; } .compact-tools { display: flex; gap: .3rem; align-items: center; } }
   .share-actions { position: relative; margin-left: auto; }
   .share-actions summary { cursor: pointer; padding: .5rem; }
   .share-actions > div { position: absolute; top: 100%; right: 0; z-index: 5; display: grid; gap: .4rem; min-width: 9rem; padding: .5rem; background: var(--surface); border: 1px solid var(--line); border-radius: .5rem; }
-  .output-status { position: absolute; z-index: 4; bottom: 1rem; left: 1rem; background: var(--surface); padding: .4rem .7rem; border-radius: .4rem; }
+  .output-status { position: absolute; z-index: 4; bottom: 1rem; left: 1rem; max-width: calc(100% - 2rem); background: var(--surface); padding: .4rem .7rem; border-radius: .4rem; }
   .drag-out { position: absolute; z-index: 3; display: flex; align-items: center; gap: .4rem; padding: .2rem .5rem; cursor: grab; box-shadow: 0 2px 10px #0003; }
   .drag-out img { width: 40px; height: 28px; object-fit: contain; }
 </style>

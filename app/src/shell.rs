@@ -44,7 +44,11 @@ pub(crate) fn packet(name: &str, image: RasterImage) -> Result<Vec<u8>, String> 
     Ok(out)
 }
 
-fn loaded_packet(name: &str, image: RasterImage, editable: bool) -> Result<Vec<u8>, String> {
+pub(crate) fn loaded_packet(
+    name: &str,
+    image: RasterImage,
+    editable: bool,
+) -> Result<Vec<u8>, String> {
     let mut bytes = packet(name, image)?;
     if editable {
         bytes[4..8].copy_from_slice(&2u32.to_le_bytes());
@@ -68,6 +72,7 @@ fn remember(
     preview: RasterImage,
     target: Option<PathBuf>,
 ) -> Result<(), String> {
+    crate::privacy::reset(app)?;
     *app.state::<ImageSession>()
         .0
         .lock()

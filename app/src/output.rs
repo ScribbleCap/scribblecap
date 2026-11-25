@@ -80,15 +80,15 @@ fn image(width: u32, height: u32, pixels: Vec<u8>) -> Result<RasterImage, String
     }
     RasterImage::new(width, height, pixels).map_err(|e| e.to_string())
 }
-struct Prepared {
-    preview: RasterImage,
-    editable: Option<EditableDocument>,
+pub(crate) struct Prepared {
+    pub(crate) preview: RasterImage,
+    pub(crate) editable: Option<EditableDocument>,
 }
 
 /// Render the current WASM document with the same core painter used by CLI export.
 /// Imported annotations are already in the displayed preview; append only this
 /// session's new elements to their retained original editable document.
-fn prepare(
+pub(crate) fn prepare(
     source: RasterImage,
     json: &str,
     original: Option<&EditableDocument>,

@@ -47,3 +47,18 @@ export async function dragImage(image: LoadedImage, document: string, gesture: n
 export async function cancelDrag(gesture: number): Promise<void> { await invoke('shell_cancel_drag', { gesture }); }
 
 export async function beginDrag(): Promise<number> { return invoke('shell_begin_drag'); }
+
+function privacyReply(response: ArrayBuffer | number[]): LoadedImage {
+  const bytes = response instanceof ArrayBuffer ? response : new Uint8Array(response).buffer;
+  if (bytes.byteLength < 4) throw new Error('The background response is invalid.');
+  const privacyRevision = new DataView(bytes).getUint32(0, true);
+  const result = decodeImagePacket(bytes.slice(4));
+  if (!result) throw new Error('The privacy operation returned no image.');
+  return { ...result, privacyRevision };
+}
+export async function privacyImage(image: LoadedImage, rect: [number, number, number, number], operation: 'pixelate' | 'redact'): Promise<LoadedImage> {
+  return privacyReply(await invoke<ArrayBuffer | number[]>('shell_privacy_image', pixelRequest(image, { name: image.name, rect, operation, currentRevision: image.privacyRevision ?? 0 })));
+}
+export async function restorePrivacy(revision: number): Promise<LoadedImage> {
+  return privacyReply(await invoke<ArrayBuffer | number[]>('shell_restore_privacy', { revision }));
+}

@@ -100,6 +100,21 @@ fn cases() -> Vec<(&'static str, Document)> {
             ]),
         ),
         (
+            "signal_stamps",
+            doc(["signal-check", "signal-alert", "signal-spark"]
+                .iter()
+                .enumerate()
+                .map(|(i, name)| {
+                    Shape::Stamp(Stamp {
+                        center: Point::new(35.0 + i as f64 * 60.0, 70.0),
+                        stamp: (*name).into(),
+                        diameter: 48.0,
+                        tail_angle: None,
+                    })
+                })
+                .collect()),
+        ),
+        (
             "freehand",
             doc(vec![
                 Shape::Freehand(Freehand {
