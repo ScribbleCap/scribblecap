@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { captureState, type CaptureAvailability, type CaptureMode } from './capture';
   let { busy, capture, timer, settings }: {
     busy: boolean;
@@ -20,7 +20,7 @@
   }
   function toggleMenu() {
     open = !open; timers = false;
-    if (open) void refresh();
+    if (open) void refresh().then(() => tick()).then(() => root?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus());
   }
   function close(refocus = false) {
     open = false; timers = false;
@@ -52,7 +52,7 @@
     <div class="menu" role="menu" aria-label="Capture options" tabindex="-1" onkeydown={onKey}>
       <button role="menuitem" onclick={() => pick(() => capture('window'))} disabled={availability.wayland} title={availability.wayland ? WAYLAND : undefined}>Window</button>
       <button role="menuitem" onclick={() => pick(() => capture('screen'))}>Full screen</button>
-      <button role="menuitem" onclick={() => pick(() => capture('previous'))} disabled={availability.wayland || !availability.previous} title={availability.wayland ? WAYLAND : undefined}>Previous region</button>
+      <button role="menuitem" onclick={() => pick(() => capture('previous'))} disabled={availability.wayland || !availability.previous} title={availability.wayland ? WAYLAND : availability.previous ? undefined : 'Capture a region first'}>Previous region</button>
       <button role="menuitem" aria-haspopup="menu" aria-expanded={timers} onclick={() => timers = !timers}>Timer<span aria-hidden="true"> ▸</span></button>
       {#if timers}
         {#each TIMERS as seconds (seconds)}

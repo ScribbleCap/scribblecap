@@ -4,7 +4,9 @@
   let { close }: { close: () => void } = $props();
   let settings = $state<CaptureSettings>({ captureFolder: null, autoSave: false });
   let error = $state('');
+  import { trapTab } from './focus-trap';
   let closeButton: HTMLButtonElement;
+  let dialog: HTMLDivElement;
   const fail = (cause: unknown) => { error = cause instanceof Error ? cause.message : String(cause); };
   onMount(() => {
     closeButton.focus();
@@ -22,10 +24,11 @@
   }
   function onKey(event: KeyboardEvent) {
     if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); }
+    else trapTab(event, dialog);
   }
 </script>
 <div class="scrim">
-  <div class="panel" role="dialog" aria-modal="true" aria-label="Settings" tabindex="-1" onkeydown={onKey}>
+  <div class="panel" bind:this={dialog} role="dialog" aria-modal="true" aria-label="Settings" tabindex="-1" onkeydown={onKey}>
     <h2>Settings</h2>
     {#if error}<p class="problem" role="alert">{error}</p>{/if}
     <div class="setting">

@@ -69,3 +69,10 @@ it('is disabled while busy and closes on Escape', async () => {
   await view.rerender({ ...p, busy: true });
   expect((screen.getByRole('button', { name: 'Capture' }) as HTMLButtonElement).disabled).toBe(true);
 });
+it('focuses the first enabled item when opened and explains a disabled Previous region', async () => {
+  vi.mocked(captureState).mockResolvedValue({ wayland: false, previous: false });
+  render(CaptureMenu, props());
+  await fireEvent.click(screen.getByRole('button', { name: 'Capture options' }));
+  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Window' })));
+  expect(screen.getByRole('menuitem', { name: 'Previous region' }).getAttribute('title')).toBe('Capture a region first');
+});

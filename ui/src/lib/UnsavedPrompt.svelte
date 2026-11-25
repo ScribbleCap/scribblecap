@@ -1,14 +1,17 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   let { choose }: { choose: (choice: 'save' | 'discard' | 'cancel') => void } = $props();
+  import { trapTab } from './focus-trap';
   let first: HTMLButtonElement;
+  let dialog: HTMLDivElement;
   onMount(() => first.focus());
   function onKey(event: KeyboardEvent) {
     if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); choose('cancel'); }
+    else trapTab(event, dialog);
   }
 </script>
 <div class="scrim">
-  <div class="prompt" role="alertdialog" aria-modal="true" aria-labelledby="unsaved-title" aria-describedby="unsaved-text" tabindex="-1" onkeydown={onKey}>
+  <div class="prompt" bind:this={dialog} role="alertdialog" aria-modal="true" aria-labelledby="unsaved-title" aria-describedby="unsaved-text" tabindex="-1" onkeydown={onKey}>
     <h2 id="unsaved-title">Save your changes?</h2>
     <p id="unsaved-text">This image has unsaved changes. They will be lost if you continue without saving.</p>
     <div class="row">

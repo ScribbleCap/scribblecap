@@ -80,6 +80,7 @@
   let dirty = $state(false);
   let prompt = $state.raw<((choice: 'save' | 'discard' | 'cancel') => void) | null>(null);
   let settingsOpen = $state(false);
+  const modal = $derived(!!prompt || settingsOpen);
   const syncDirty = () => { dirty = tracker.dirty; };
   const paths2d = new WeakMap<WirePath, Path2D>();
   const zoomLabel = $derived(view.scale * 100 < 1 ? `${(view.scale * 100).toPrecision(2)}%` : `${Math.round(view.scale * 100)}%`);
@@ -166,13 +167,14 @@
   }
   function onDrop(event: DragEvent) {
     event.preventDefault();
-    if (bridge.desktop || busy) return;
+    if (bridge.desktop || busy || modal) return;
     const files = Array.from(event.dataTransfer?.files ?? []);
     if (files.length !== 1) { error = 'Drop one image at a time.'; return; }
     void replaceWith(() => bridge.browserImage(files[0], files[0].name));
   }
   function pasteImage() { void replaceWith(clipboardImage); }
   function onPaste(event: ClipboardEvent) {
+    if (modal) { event.preventDefault(); return; }
     if (editableTarget(event.target)) return;
     event.preventDefault();
     if (bridge.desktop) pasteImage();
@@ -342,6 +344,11 @@
   }
 
   function onKey(event: KeyboardEvent) {
+    if (modal) {
+      // A modal dialog owns the keyboard; Escape still cancels the unsaved-work prompt if focus slipped out of it.
+      if (event.key === 'Escape' && prompt) { event.preventDefault(); prompt('cancel'); }
+      return;
+    }
     if (event.key === 'Escape' && event.target instanceof Element) {
       const details = event.target.closest('details');
       if (details?.open) { details.open = false; details.querySelector('summary')?.focus(); event.preventDefault(); return; }
@@ -477,11 +484,12 @@
     const stops: (() => void)[] = [];
     if (bridge.desktop) {
       void listen<string>('shell-menu', ({ payload }) => {
+        if (modal) return; // the unsaved prompt or settings dialog owns input
         if (editableTarget(document.activeElement) && ['undo','redo','copy','paste'].includes(payload)) { document.execCommand(payload); return; }
         const actions: Record<string, () => void> = { open: openImage, paste: pasteImage, copy: copyImage, save: () => saveImage(), 'save-as': () => saveImage(true), export: () => saveImage(true,true), undo: () => travel('undo'), redo: () => travel('redo'), fit, actual, 'zoom-in': () => zoom(1.25), 'zoom-out': () => zoom(.8) };
         actions[payload]?.();
       }).then(stop => { if (mounted) unmenu = stop; else stop(); }).catch(report);
-      void listen('shell-file-drop', () => { void replaceWith(bridge.droppedImage); }).then(stop => {
+      void listen('shell-file-drop', () => { if (!modal) void replaceWith(bridge.droppedImage); }).then(stop => {
         if (mounted) unlisten = stop; else stop();
       }).catch(cause => { if (alive) error = String(cause); });
       // The capture's image is fetched from Rust once the overlays finish (M4-5).
