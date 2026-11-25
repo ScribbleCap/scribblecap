@@ -3,7 +3,7 @@ use scribblecap_formats::{EditableDocument, RasterFormat, RasterImage};
 use std::{
     collections::VecDeque,
     io::Write,
-    path::Path,
+    path::{Path, PathBuf},
     sync::{
         Arc, Mutex,
         atomic::{AtomicU32, Ordering},
@@ -168,17 +168,67 @@ pub(crate) fn prepare(
     } else if added.is_empty() {
         None
     } else {
-        let bytes =
-            scribblecap_formats::encode(&source, RasterFormat::Png).map_err(|e| e.to_string())?;
-        Some(
-            EditableDocument::new(
-                overlay,
-                vec![scribblecap_formats::ResourceData { id, bytes }],
-            )
-            .map_err(|e| e.to_string())?,
-        )
+        Some(with_background(&source, overlay, id)?)
     };
     Ok(Prepared { preview, editable })
+}
+
+/// An editable document whose background resource is `source` as PNG.
+fn with_background(
+    source: &RasterImage,
+    document: scribblecap_core::Document,
+    id: scribblecap_core::ResourceId,
+) -> Result<EditableDocument, String> {
+    let bytes =
+        scribblecap_formats::encode(source, RasterFormat::Png).map_err(|e| e.to_string())?;
+    EditableDocument::new(
+        document,
+        vec![scribblecap_formats::ResourceData { id, bytes }],
+    )
+    .map_err(|e| e.to_string())
+}
+
+/// An editable PNG of an image with no annotations (auto-saved captures, M2-9 rule).
+pub(crate) fn editable_png(image: &RasterImage) -> Result<Vec<u8>, String> {
+    use scribblecap_core::{Background, Document, Point, Resource, ResourceId, Size};
+    let mut document = Document::new(Size {
+        width: f64::from(image.width()),
+        height: f64::from(image.height()),
+    });
+    let id = ResourceId("scribblecap-output-background".into());
+    document.background = Some(Background {
+        resource: id.clone(),
+        origin: Point::new(0.0, 0.0),
+    });
+    document.resources.push(Resource {
+        id: id.clone(),
+        media_type: "image/png".into(),
+    });
+    let editable = with_background(image, document, id)?;
+    encode(image, RasterFormat::Png, Some(&editable))
+}
+
+/// Where Save writes.
+#[derive(Debug, PartialEq)]
+pub(crate) enum SaveTarget {
+    Dialog,
+    Existing(PathBuf),
+    /// A new file in the capture folder (first Save of a capture).
+    NewCapture,
+}
+
+pub(crate) fn save_target(
+    save_as: bool,
+    flat: bool,
+    target: Option<&Path>,
+    capture: bool,
+) -> SaveTarget {
+    match target {
+        _ if save_as || flat => SaveTarget::Dialog,
+        Some(path) => SaveTarget::Existing(path.to_path_buf()),
+        None if capture => SaveTarget::NewCapture,
+        None => SaveTarget::Dialog,
+    }
 }
 
 fn format(path: &Path) -> Result<RasterFormat, String> {
@@ -357,14 +407,17 @@ pub async fn shell_save_image(
         let prepared = prepare(image, &document, editable.as_ref(), !flat)?;
         // The first Save of a capture goes to the capture folder without a dialog;
         // a cancelled folder picker falls back to the Save dialog.
-        let capture_folder = if capture && !save_as && !flat && target.is_none() {
+        let decision = save_target(save_as, flat, target.as_deref(), capture);
+        let capture_folder = if decision == SaveTarget::NewCapture {
             crate::settings::ensure_capture_folder(&app)?
         } else {
             None
         };
         let mut target = if let Some(folder) = &capture_folder {
             folder.join("capture.png")
-        } else if save_as || flat || target.is_none() {
+        } else if let SaveTarget::Existing(path) = decision {
+            path
+        } else {
             let mut dialog = app
                 .dialog()
                 .file()
@@ -389,8 +442,6 @@ pub async fn shell_save_image(
             } else {
                 selected.with_extension("png")
             }
-        } else {
-            target.ok_or("The save destination is unavailable.")?
         };
         let format = if flat {
             format(&target)?
@@ -763,5 +814,39 @@ mod tests {
         std::fs::set_permissions(&existing, std::fs::Permissions::from_mode(0o664)).unwrap();
         atomic_save(&existing, b"new").unwrap();
         assert_eq!(mode(&existing), 0o664);
+    }
+
+    #[test]
+    fn save_target_for_captures_and_other_images() {
+        use std::path::PathBuf;
+        let file = PathBuf::from("/c/Screenshot 2026-11-24 18.42.07.png");
+        // Auto-save off, first Save of a capture: capture folder, no dialog.
+        assert_eq!(
+            save_target(false, false, None, true),
+            SaveTarget::NewCapture
+        );
+        // Later Save, or auto-save on (target already written): overwrite it.
+        assert_eq!(
+            save_target(false, false, Some(&file), true),
+            SaveTarget::Existing(file.clone())
+        );
+        // Save As and Export always ask.
+        assert_eq!(save_target(true, false, None, true), SaveTarget::Dialog);
+        assert_eq!(
+            save_target(true, false, Some(&file), true),
+            SaveTarget::Dialog
+        );
+        assert_eq!(save_target(false, true, None, true), SaveTarget::Dialog);
+        // Not a capture, nothing to save back to: ask.
+        assert_eq!(save_target(false, false, None, false), SaveTarget::Dialog);
+    }
+
+    #[test]
+    fn an_unannotated_capture_is_written_as_an_editable_png() {
+        let image = RasterImage::new(2, 1, vec![1, 2, 3, 255, 4, 5, 6, 255]).unwrap();
+        let bytes = editable_png(&image).unwrap();
+        let opened = scribblecap_formats::open(&bytes).unwrap();
+        assert!(opened.editable.is_some());
+        assert_eq!(opened.raster.image, image);
     }
 }

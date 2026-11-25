@@ -9,13 +9,13 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use scribblecap_capture::{CaptureError, Capturer, ScreenRect, WindowInfo};
-use scribblecap_formats::{RasterFormat, RasterImage};
+use scribblecap_formats::RasterImage;
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder, ipc::Response};
 
 use geometry::{PreviousRegion, display_at};
 use session::{
-    CaptureMode, CaptureState, EditorHidden, Frozen, HIDE_SETTLE_MS, crop, cursor_points, freeze,
-    raster, save_capture, valid_timer,
+    Busy, CaptureMode, CaptureState, EditorHidden, Frozen, HIDE_SETTLE_MS, OVERLAY_WATCHDOG, crop,
+    cursor_points, freeze, raster, save_capture, valid_timer, watchdog_expired,
 };
 
 const OVERLAY_PREFIX: &str = "capture-overlay-";
@@ -164,6 +164,7 @@ fn open_overlays<F: FnMut()>(
     capturer: &dyn Capturer,
     mode: CaptureMode,
     hidden: EditorHidden<F>,
+    busy: Busy,
 ) -> Result<Option<RasterImage>, String> {
     let frozen = freeze(capturer).map_err(message)?;
     let windows = if mode == CaptureMode::Window {
@@ -178,6 +179,8 @@ fn open_overlays<F: FnMut()>(
         state.windows = windows;
         state.mode = Some(mode);
         state.result = None;
+        state.contacted = false;
+        state.generation += 1;
     }
     for display in displays {
         let b = display.bounds;
@@ -203,7 +206,29 @@ fn open_overlays<F: FnMut()>(
         }
     }
     hidden.keep_hidden();
+    busy.keep();
+    start_watchdog(app);
     Ok(None)
+}
+
+/// Cancel overlays whose page never called back, so the editor never stays hidden.
+fn start_watchdog(app: &AppHandle) {
+    let Ok(generation) = lock(app).map(|s| s.generation) else {
+        return;
+    };
+    let opened = std::time::Instant::now();
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(OVERLAY_WATCHDOG);
+        let expired = lock(&app).is_ok_and(|s| {
+            s.generation == generation
+                && s.mode.is_some()
+                && watchdog_expired(opened, s.contacted, std::time::Instant::now())
+        });
+        if expired {
+            cancel(&app);
+        }
+    });
 }
 
 /// Drop frozen pixels and window outlines.
@@ -220,6 +245,7 @@ fn capture_hidden<F: FnMut()>(
     app: &AppHandle,
     mode: CaptureMode,
     hidden: EditorHidden<F>,
+    busy: Busy,
 ) -> Result<Option<RasterImage>, String> {
     let capturer = backend()?;
     if scribblecap_capture::is_wayland() {
@@ -244,7 +270,7 @@ fn capture_hidden<F: FnMut()>(
                 .clone()
                 .filter(|p| p.still_valid(&displays));
             let Some(previous) = previous else {
-                return open_overlays(app, capturer.as_ref(), CaptureMode::Region, hidden);
+                return open_overlays(app, capturer.as_ref(), CaptureMode::Region, hidden, busy);
             };
             let image = capturer
                 .capture_screen(Some(previous.display.id))
@@ -256,7 +282,7 @@ fn capture_hidden<F: FnMut()>(
             crop(&frozen, previous.rect).map(Some)
         }
         CaptureMode::Region | CaptureMode::Window => {
-            open_overlays(app, capturer.as_ref(), mode, hidden)
+            open_overlays(app, capturer.as_ref(), mode, hidden, busy)
         }
     }
 }
@@ -278,9 +304,8 @@ fn finish(app: &AppHandle, image: RasterImage) -> Result<Vec<u8>, String> {
         .auto_save;
     let mut target = None;
     if auto_save && let Some(folder) = crate::settings::ensure_capture_folder(app)? {
-        // No annotations yet: a plain PNG, exactly what Save writes for this image.
-        let saved = scribblecap_formats::encode(&image, RasterFormat::Png)
-            .map_err(|e| e.to_string())
+        // An editable PNG with no annotations yet (M2-9 rule).
+        let saved = crate::output::editable_png(&image)
             .and_then(|bytes| save_capture(&folder, &bytes, now));
         match saved {
             Ok(path) => target = Some(path),
@@ -307,13 +332,12 @@ fn finish(app: &AppHandle, image: RasterImage) -> Result<Vec<u8>, String> {
     crate::shell::packet(&title, image)
 }
 
-fn starting(app: &AppHandle) -> Result<(), String> {
+/// Claim the single capture slot; a running capture's cancel flag is left alone.
+fn starting(app: &AppHandle) -> Result<Busy, String> {
     let state = lock(app)?;
-    if state.mode.is_some() || !state.frozen.is_empty() {
-        return Err("A capture is already in progress.".into());
-    }
+    let busy = Busy::start(&state.busy).ok_or("A capture is already in progress.")?;
     state.cancel.store(false, Ordering::SeqCst);
-    Ok(())
+    Ok(busy)
 }
 
 #[tauri::command]
@@ -326,11 +350,11 @@ pub fn shell_capture_state(app: AppHandle) -> Result<CaptureAvailability, String
 
 #[tauri::command]
 pub async fn shell_capture(app: AppHandle, mode: CaptureMode) -> Result<Response, String> {
-    starting(&app)?;
+    let busy = starting(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
         let image = {
             let hidden = hide_editor(&app);
-            capture_hidden(&app, mode, hidden)?
+            capture_hidden(&app, mode, hidden, busy)?
         };
         // An empty packet: overlays are open (the result follows `capture-ready`)
         // or the timer was cancelled.
@@ -348,7 +372,7 @@ pub async fn shell_capture_timer(app: AppHandle, seconds: u8) -> Result<Response
     if !valid_timer(seconds) {
         return Err("The timer can be 3, 5 or 10 seconds.".into());
     }
-    starting(&app)?;
+    let busy = starting(&app)?;
     let cancel = lock(&app)?.cancel.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let image = {
@@ -392,7 +416,7 @@ pub async fn shell_capture_timer(app: AppHandle, seconds: u8) -> Result<Response
                 return Ok(Response::new(Vec::new()));
             }
             std::thread::sleep(Duration::from_millis(HIDE_SETTLE_MS));
-            capture_hidden(&app, CaptureMode::Region, hidden)?
+            capture_hidden(&app, CaptureMode::Region, hidden, busy)?
         };
         // An empty packet: overlays are open (the result follows `capture-ready`)
         // or the timer was cancelled.
@@ -407,7 +431,8 @@ pub async fn shell_capture_timer(app: AppHandle, seconds: u8) -> Result<Response
 
 #[tauri::command]
 pub fn shell_overlay_info(app: AppHandle, display: u32) -> Result<OverlayInfo, String> {
-    let state = lock(&app)?;
+    let mut state = lock(&app)?;
+    state.contacted = true;
     let frozen = state
         .frozen
         .iter()
@@ -429,13 +454,15 @@ pub fn shell_overlay_info(app: AppHandle, display: u32) -> Result<OverlayInfo, S
 #[tauri::command]
 pub async fn shell_overlay_frame(app: AppHandle, display: u32) -> Result<Response, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let image = lock(&app)?
+        let mut state = lock(&app)?;
+        state.contacted = true;
+        let image = &state
             .frozen
             .iter()
             .find(|f| f.display.id == display)
-            .map(|f| f.image.clone())
-            .ok_or("This capture has ended.")?;
-        crate::shell::packet("", raster(image)?).map(Response::new)
+            .ok_or("This capture has ended.")?
+            .image;
+        crate::shell::packet_from("", image.width, image.height, &image.pixels).map(Response::new)
     })
     .await
     .map_err(|e| format!("The capture stopped: {e}"))?
@@ -465,6 +492,7 @@ pub async fn shell_overlay_select(app: AppHandle, display: u32, rect: Rect) -> R
             state.frozen.clear();
             state.windows.clear();
             state.mode = None;
+            Busy::release(&state.busy);
             cropped
         };
         close_capture_windows(&app);
@@ -498,6 +526,10 @@ pub async fn shell_capture_result(app: AppHandle) -> Result<Response, String> {
 fn cancel(app: &AppHandle) {
     if let Ok(state) = lock(app) {
         state.cancel.store(true, Ordering::SeqCst);
+        // Overlays own the busy flag; a running worker (timer) releases its own.
+        if state.mode.is_some() {
+            Busy::release(&state.busy);
+        }
     }
     discard(app);
     close_capture_windows(app);

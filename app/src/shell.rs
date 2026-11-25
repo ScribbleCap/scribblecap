@@ -25,22 +25,35 @@ fn read_limited(reader: impl Read, limit: u64) -> Result<Vec<u8>, String> {
 }
 
 pub(crate) fn packet(name: &str, image: RasterImage) -> Result<Vec<u8>, String> {
-    if image.pixels().len() > MAX_IMAGE_BYTES {
+    packet_from(name, image.width(), image.height(), image.pixels())
+}
+
+/// `packet` from borrowed straight RGBA8 pixels (`width * height * 4` bytes).
+pub(crate) fn packet_from(
+    name: &str,
+    width: u32,
+    height: u32,
+    pixels: &[u8],
+) -> Result<Vec<u8>, String> {
+    if u64::from(width) * u64::from(height) * 4 != pixels.len() as u64 {
+        return Err("The image pixels are incomplete.".into());
+    }
+    if pixels.len() > MAX_IMAGE_BYTES {
         return Err("This image is too large to display (about 67 million pixels maximum).".into());
     }
     if name.len() > 65536 {
         return Err("The image filename is too long.".into());
     }
     let mut out = Vec::new();
-    out.try_reserve_exact(20 + name.len() + image.pixels().len())
+    out.try_reserve_exact(20 + name.len() + pixels.len())
         .map_err(|_| "There is not enough memory to open this image.".to_string())?;
     out.extend_from_slice(b"SCIM");
     out.extend_from_slice(&1u32.to_le_bytes());
-    out.extend_from_slice(&image.width().to_le_bytes());
-    out.extend_from_slice(&image.height().to_le_bytes());
+    out.extend_from_slice(&width.to_le_bytes());
+    out.extend_from_slice(&height.to_le_bytes());
     out.extend_from_slice(&(name.len() as u32).to_le_bytes());
     out.extend_from_slice(name.as_bytes());
-    out.extend_from_slice(image.pixels());
+    out.extend_from_slice(pixels);
     Ok(out)
 }
 

@@ -1,8 +1,9 @@
 //! The in-app capture flow without windows: hide guard, freeze, crop, save names.
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use chrono::NaiveDateTime;
 use scribblecap_capture::{CapturedImage, Capturer, DisplayInfo, ScreenRect, WindowInfo};
@@ -144,6 +145,40 @@ pub fn valid_timer(seconds: u8) -> bool {
     matches!(seconds, 3 | 5 | 10)
 }
 
+/// Marks a capture as running; dropping it (also on error or panic) ends it.
+pub struct Busy(Arc<AtomicBool>);
+
+impl Busy {
+    /// `None` while another capture is running.
+    pub fn start(flag: &Arc<AtomicBool>) -> Option<Self> {
+        flag.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .ok()
+            .map(|_| Self(flag.clone()))
+    }
+
+    /// The overlays now own the capture: `release` ends it on select, cancel or close.
+    pub fn keep(self) {
+        std::mem::forget(self);
+    }
+
+    pub fn release(flag: &AtomicBool) {
+        flag.store(false, Ordering::SeqCst);
+    }
+}
+
+impl Drop for Busy {
+    fn drop(&mut self) {
+        Self::release(&self.0);
+    }
+}
+
+/// Overlays that never called back (their page failed to load) are cancelled.
+pub const OVERLAY_WATCHDOG: Duration = Duration::from_secs(10);
+
+pub fn watchdog_expired(opened: Instant, contacted: bool, now: Instant) -> bool {
+    !contacted && now.duration_since(opened) >= OVERLAY_WATCHDOG
+}
+
 #[derive(Default)]
 pub struct CaptureInner {
     pub frozen: Vec<Frozen>,
@@ -153,6 +188,12 @@ pub struct CaptureInner {
     pub result: Option<RasterImage>,
     /// The overlay mode while overlays are open.
     pub mode: Option<CaptureMode>,
+    /// Set while any capture runs, from the command until the editor has the result.
+    pub busy: Arc<AtomicBool>,
+    /// Counts overlay sessions, so a stale watchdog never cancels a newer one.
+    pub generation: u64,
+    /// An overlay page asked for its info or frame.
+    pub contacted: bool,
 }
 
 #[derive(Default)]
@@ -363,5 +404,32 @@ mod tests {
         );
         assert!(valid_timer(3) && valid_timer(5) && valid_timer(10));
         assert!(!valid_timer(0) && !valid_timer(4));
+    }
+
+    #[test]
+    fn only_one_capture_runs_and_the_flag_is_released_on_every_exit() {
+        let busy = Arc::new(AtomicBool::new(false));
+        let first = Busy::start(&busy).unwrap();
+        assert!(Busy::start(&busy).is_none());
+        drop(first);
+        let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _b = Busy::start(&busy).unwrap();
+            panic!("worker failed");
+        }));
+        assert!(r.is_err());
+        let overlays = Busy::start(&busy).unwrap();
+        overlays.keep();
+        assert!(Busy::start(&busy).is_none());
+        Busy::release(&busy);
+        assert!(Busy::start(&busy).is_some());
+    }
+
+    #[test]
+    fn overlays_that_never_call_back_are_cancelled_after_ten_seconds() {
+        let opened = std::time::Instant::now();
+        let later = |s| opened + std::time::Duration::from_secs(s);
+        assert!(!watchdog_expired(opened, false, later(9)));
+        assert!(watchdog_expired(opened, false, later(10)));
+        assert!(!watchdog_expired(opened, true, later(60)));
     }
 }
