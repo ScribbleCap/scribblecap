@@ -4,6 +4,10 @@ const { execFileSync } = require('node:child_process');
 const SETTINGS = ['.github/dependabot.yml', '.github/CODEOWNERS', '.gitignore'];
 
 function isDocumentation(path) {
+  // Crate READMEs can be compiled by include_str! (including doctests). Keep
+  // this conservative rather than parsing Rust: deleted files, macro-generated
+  // paths and newly added includes must also trigger the platform checks.
+  if (/^(?:crates\/[^/]+|app)\/(?:.*\/)?README\.md$/.test(path)) return false;
   return path.endsWith('.md') || path.startsWith('docs/') || /^LICENSE[^/]*$/.test(path)
     || SETTINGS.includes(path) || path.startsWith('.github/ISSUE_TEMPLATE/');
 }

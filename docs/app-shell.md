@@ -71,7 +71,9 @@ including when reached through an alias, and keeps the Save destination unchange
 The thumbnail tab at the image corner starts a native PNG file drag while the
 primary button is held. It includes current annotations and editable data. Releasing
 before preparation finishes cancels dispatch. Keyboard activation copies instead.
-Share files remain alive until application shutdown for asynchronous recipients.
+Rust allocates gesture IDs so cancellation continues to work after a webview reload.
+The newest five share directories remain available for asynchronous recipients;
+older directories are removed once their native drag has also finished.
 See [decision 0013](decisions/0013-native-file-output.md) for native dependencies.
 
 Runtime smoke checks remain required on macOS, Windows and Linux: paste an image,
@@ -94,6 +96,16 @@ session. Unknown flags and versions are rejected.
 The frontend validates the packet before replacing its state. Tauri's raw response
 can arrive as ArrayBuffer or a byte array on WebKit; both are supported. This is an
 in-process transport, not a saved file format.
+
+Copy, save, drag and canvas transforms send pixels through Tauri's raw binary
+request body. The `SCOP` version 1 envelope contains a 12-byte header (magic,
+u32 little-endian version and metadata byte length), UTF-8 JSON metadata, then
+straight RGBA8 bytes. Dimensions and command-specific options live in metadata;
+pixels are never expanded into a JSON number array. Both sides enforce the
+256 MiB pixel limit, exact dimensions and a 16 MiB metadata limit. Rust rejects
+JSON request bodies and unsupported packet versions. See
+[decision 0014](decisions/0014-bounded-sharing-and-binary-requests.md) and the
+[4K preparation benchmark](pixel-ipc-benchmark.md).
 
 Encoded reads are limited to 512 MiB; display pixels to 256 MiB (roughly 67 million
 pixels). The formats decoder has its own limits. Source data, decoded pixels,

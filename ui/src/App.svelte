@@ -39,7 +39,7 @@
   let error = $state('');
   let outputStatus = $state('');
   let thumbnail = $state('');
-  let shareGesture = 0;
+  let shareGesture: { id: number | null; cancelled: boolean } | null = null;
   let alive = true;
   let ratio = $state(1);
   // While fitted, resizing the window re-fits the image (like native image viewers);
@@ -137,10 +137,20 @@
     });
   }
   function dragImage() {
-    const generation = ++shareGesture;
-    void output(async (image, document) => { await bridge.dragImage(image, document, generation); });
+    const current = { id: null as number | null, cancelled: false };
+    shareGesture = current;
+    void output(async (image, document) => {
+      const id = await bridge.beginDrag();
+      current.id = id;
+      if (current.cancelled || !alive) { await bridge.cancelDrag(id); return; }
+      await bridge.dragImage(image, document, id);
+    });
   }
-  function cancelShare() { if (shareGesture && bridge.desktop) void bridge.cancelDrag(shareGesture).catch(() => {}); }
+  function cancelShare() {
+    if (!shareGesture || !bridge.desktop) return;
+    shareGesture.cancelled = true;
+    if (shareGesture.id !== null) void bridge.cancelDrag(shareGesture.id).catch(() => {});
+  }
   function fit() { if (image) { view = fitViewport(image, area); fitted = true; } }
   function actual() { if (image) { view = actualSize(image, area); fitted = false; } }
   function zoom(factor: number) { if (image) { view = zoomAt(view, view.scale * factor, { x: area.width / 2, y: area.height / 2 }); fitted = false; } }
@@ -322,7 +332,7 @@
     scheme?.addEventListener?.('change', onScheme);
     return () => { mounted = false; unlisten?.(); observer.disconnect(); scheme?.removeEventListener?.('change', onScheme); };
   });
-  onDestroy(() => { alive = false; });
+  onDestroy(() => { alive = false; cancelShare(); });
 
   function paint(context: CanvasRenderingContext2D, path: WirePath) {
     if (typeof Path2D === 'undefined') return;

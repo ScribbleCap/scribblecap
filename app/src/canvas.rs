@@ -3,20 +3,33 @@ use scribblecap_core::canvas::{CanvasOperation, transform};
 use scribblecap_formats::RasterImage;
 use tauri::{AppHandle, Manager, ipc::Response};
 
-#[allow(clippy::too_many_arguments)] // Explicit IPC fields keep the existing pixel packet boundary.
-#[tauri::command]
-pub async fn shell_transform_image(
-    app: AppHandle,
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TransformMetadata {
     name: String,
-    width: u32,
-    height: u32,
-    pixels: Vec<u8>,
     operation: String,
     output_width: u32,
     output_height: u32,
     x: u32,
     y: u32,
+}
+
+#[tauri::command]
+pub async fn shell_transform_image(
+    app: AppHandle,
+    request: tauri::ipc::Request<'_>,
 ) -> Result<Response, String> {
+    let (
+        source,
+        TransformMetadata {
+            name,
+            operation,
+            output_width,
+            output_height,
+            x,
+            y,
+        },
+    ) = crate::pixel_request::decode(&request)?;
     tauri::async_runtime::spawn_blocking(move || {
         let session = app.state::<crate::shell::ImageSession>();
         let session = session.0.lock().map_err(|_| "Image state is unavailable".to_string())?;
@@ -47,7 +60,7 @@ pub async fn shell_transform_image(
             "vertical" => CanvasOperation::FlipVertical,
             _ => return Err("Unknown canvas operation".into()),
         };
-        let image = transform(width, height, &pixels, operation).map_err(|e| e.to_string())?;
+        let image = transform(source.width(), source.height(), source.pixels(), operation).map_err(|e| e.to_string())?;
         let image =
             RasterImage::new(image.width, image.height, image.pixels).map_err(|e| e.to_string())?;
         crate::shell::packet(&name, image).map(Response::new)

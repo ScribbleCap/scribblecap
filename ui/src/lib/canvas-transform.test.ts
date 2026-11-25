@@ -1,3 +1,4 @@
+import { pixelRequest } from './pixel-request';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const invoke = vi.hoisted(() => vi.fn());
 vi.mock('@tauri-apps/api/core', () => ({ invoke, isTauri: () => true }));
@@ -14,7 +15,7 @@ describe('canvas native boundary', () => {
     invoke.mockResolvedValue(Array.from(packet));
     const result = await transformImage(image, { operation: 'crop', outputWidth: 1, outputHeight: 1, x: 0, y: 0 });
     expect(result.pixels).toEqual(new Uint8ClampedArray([4,3,2,1]));
-    expect(invoke).toHaveBeenCalledWith('shell_transform_image', { name: 'test.png', width: 1, height: 1, pixels: [1,2,3,4], operation: 'crop', outputWidth: 1, outputHeight: 1, x: 0, y: 0 });
+    expect(invoke).toHaveBeenCalledWith('shell_transform_image', pixelRequest(image, { operation: 'crop', outputWidth: 1, outputHeight: 1, x: 0, y: 0, name: 'test.png' }));
   });
   it('blocks editable images before invoking a flattening operation', async () => {
     let blocked = false;

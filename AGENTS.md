@@ -69,6 +69,14 @@ use `corepack pnpm` if pnpm is not installed). Linux needs Tauri 2's system pack
 Run from the repository root. Build the UI first: the app embeds `ui/dist`, so Rust
 builds of `app` fail until it exists.
 
+In an agent sandbox on macOS, set `export XDG_RUNTIME_DIR="${TMPDIR:-/tmp}"`
+before running pnpm 12.16.1. Its store operation locks live at
+`$XDG_RUNTIME_DIR/pnpm-store-operation-locks-<uid>` (default `/tmp` when unset),
+outside `storeDir`; changing `--store-dir` alone does not relocate them.
+Use an absolute writable directory. This follows
+[pnpm's runtime lock directory behavior](https://github.com/pnpm/pnpm/issues/16390).
+Verified by running the pinned pnpm's UI lint inside the sandbox with this export.
+
 ```sh
 # UI
 pnpm --dir ui install --frozen-lockfile
@@ -102,3 +110,6 @@ repository settings no build reads: `.github/dependabot.yml`, `.github/CODEOWNER
 `linux`, `windows`, and `macos` still report success, but skip toolchain installation,
 builds and tests. CodeQL also skips analysis for these PRs/pushes; scheduled and
 manual scans always run. Any other changed file runs the full checks.
+`README.md` files under `crates/<crate>/` and `app/` always run full checks:
+Rust may include them as source or doctests. This guard is conservative even
+when the crate does not currently use `include_str!`.

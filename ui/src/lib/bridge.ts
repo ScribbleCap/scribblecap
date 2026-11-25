@@ -1,3 +1,4 @@
+import { pixelRequest } from './pixel-request';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { decodeImagePacket, MAX_IMAGE_BYTES, type LoadedImage } from './image-packet';
 
@@ -35,12 +36,14 @@ export async function droppedImage(): Promise<LoadedImage | null> {
 }
 
 export async function copyImage(image: LoadedImage, document: string): Promise<void> {
-  await invoke('shell_copy_image', { width: image.width, height: image.height, pixels: Array.from(image.pixels), document });
+  await invoke('shell_copy_image', pixelRequest(image, { document }));
 }
 export async function saveImage(image: LoadedImage, document: string, saveAs = false, flat = false): Promise<string | null> {
-  return invoke('shell_save_image', { name: image.name, width: image.width, height: image.height, pixels: Array.from(image.pixels), document, saveAs, flat });
+  return invoke('shell_save_image', pixelRequest(image, { name: image.name, document, saveAs, flat }));
 }
 export async function dragImage(image: LoadedImage, document: string, gesture: number): Promise<void> {
-  await invoke('shell_drag_image', { width: image.width, height: image.height, pixels: Array.from(image.pixels), document, gesture });
+  await invoke('shell_drag_image', pixelRequest(image, { document, gesture }));
 }
 export async function cancelDrag(gesture: number): Promise<void> { await invoke('shell_cancel_drag', { gesture }); }
+
+export async function beginDrag(): Promise<number> { return invoke('shell_begin_drag'); }

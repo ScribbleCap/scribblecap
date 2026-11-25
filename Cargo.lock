@@ -3117,6 +3117,8 @@ dependencies = [
  "scribblecap-capture",
  "scribblecap-core",
  "scribblecap-formats",
+ "serde",
+ "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-clipboard-manager",

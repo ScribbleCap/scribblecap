@@ -4,6 +4,7 @@ re-work/
 .DS_Store
 target/
 node_modules/
+.pnpm-store/
 dist/
 app/gen/schemas/
 ui/src/generated/
