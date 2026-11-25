@@ -4,8 +4,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod canvas;
-// Used by later M4-5 tasks (capture flow).
-#[allow(dead_code)]
 mod capture;
 mod menus;
 mod output;
@@ -24,12 +22,16 @@ fn main() {
         .manage(shell::ImageSession::default())
         .manage(privacy::PrivacyHistory::default())
         .manage(output::ShareState::default())
+        .manage(capture::session::CaptureState::default())
         .setup(|app| {
             app.manage(settings::initial(app.handle()));
             menus::install(app)?;
             Ok(())
         })
         .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::Destroyed) {
+                capture::window_destroyed(window);
+            }
             if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event
                 && let Ok(mut pending) = window.state::<shell::DroppedImage>().0.lock()
             {
@@ -53,7 +55,15 @@ fn main() {
             output::shell_cancel_drag,
             settings::shell_get_settings,
             settings::shell_set_auto_save,
-            settings::shell_choose_capture_folder
+            settings::shell_choose_capture_folder,
+            capture::shell_capture_state,
+            capture::shell_capture,
+            capture::shell_capture_timer,
+            capture::shell_overlay_info,
+            capture::shell_overlay_frame,
+            capture::shell_overlay_select,
+            capture::shell_capture_result,
+            capture::shell_capture_cancel
         ])
         .build(tauri::generate_context!())
         .expect("error while building ScribbleCap")

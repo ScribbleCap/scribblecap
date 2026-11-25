@@ -105,7 +105,6 @@ fn resolve_folder(
 /// The saved capture folder if usable, otherwise a folder picker (asked again while
 /// the choice is unusable) whose choice is stored. `Ok(None)` when the picker is
 /// cancelled. Blocks on the dialog: call off the main thread.
-#[allow(dead_code)] // Used by the capture flow in a later M4-5 task.
 pub fn ensure_capture_folder(app: &AppHandle) -> Result<Option<PathBuf>, String> {
     let state = app.state::<SettingsState>();
     let saved = state

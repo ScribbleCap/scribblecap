@@ -37,6 +37,7 @@ impl Snapshot {
             editable: self.editable.clone(),
             preview: self.editable.as_ref().map(|_| self.source.clone()),
             target: None,
+            capture_name: None,
         }
     }
     fn packet(&self, revision: u32) -> Result<Vec<u8>, String> {
@@ -298,6 +299,7 @@ mod tests {
             editable: prepared.editable,
             preview: Some(prepared.preview.clone()),
             target: Some("old.png".into()),
+            capture_name: None,
         };
         let mut history = History::default();
         apply(

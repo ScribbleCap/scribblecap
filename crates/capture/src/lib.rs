@@ -142,6 +142,21 @@ pub trait Capturer {
 }
 
 /// The capture backend for this OS.
+/// True on a Linux Wayland session, where only the system portal can capture.
+pub fn is_wayland() -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        x11_pixels::is_wayland_session(
+            std::env::var("XDG_SESSION_TYPE").ok().as_deref(),
+            std::env::var("WAYLAND_DISPLAY").ok().as_deref(),
+        )
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        false
+    }
+}
+
 pub fn backend() -> Result<Box<dyn Capturer>> {
     #[cfg(target_os = "macos")]
     {

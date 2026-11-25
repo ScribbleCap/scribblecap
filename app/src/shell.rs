@@ -62,11 +62,13 @@ pub struct Session {
     pub editable: Option<EditableDocument>,
     pub preview: Option<RasterImage>,
     pub target: Option<PathBuf>,
+    /// Set for a capture taken in the app: its first Save goes to the capture folder.
+    pub capture_name: Option<String>,
 }
 #[derive(Default)]
 pub struct ImageSession(pub std::sync::Mutex<Session>);
 
-fn remember(
+pub(crate) fn remember(
     app: &AppHandle,
     editable: Option<EditableDocument>,
     preview: RasterImage,
@@ -80,6 +82,7 @@ fn remember(
         target: target.filter(|path| save_in_place(editable.is_some(), path)),
         editable,
         preview: Some(preview),
+        capture_name: None,
     };
     Ok(())
 }
@@ -113,7 +116,7 @@ fn read_image(path: &Path) -> Result<OpenedInput, String> {
     Ok((name, bytes, opened.editable, preview))
 }
 
-fn set_title(app: &AppHandle, name: &str) {
+pub(crate) fn set_title(app: &AppHandle, name: &str) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.set_title(&format!("{name} — ScribbleCap"));
     }

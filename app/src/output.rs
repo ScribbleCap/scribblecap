@@ -240,7 +240,6 @@ fn with_default_extension(path: std::path::PathBuf) -> std::path::PathBuf {
 /// Writes a new file without ever replacing one: the bytes go to a temporary
 /// file in the same folder, then are linked into place only if `path` is free.
 /// Fails with `ErrorKind::AlreadyExists` if something is already there.
-#[allow(dead_code)] // Used by the capture flow in a later M4-5 task.
 pub(crate) fn save_new(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     let parent = path
         .parent()
@@ -339,7 +338,7 @@ pub async fn shell_save_image(
         },
     ) = crate::pixel_request::decode(&request)?;
     tauri::async_runtime::spawn_blocking(move || {
-        let (editable, preview, target) = {
+        let (editable, preview, target, capture) = {
             let session = app.state::<crate::shell::ImageSession>();
             let session = session
                 .0
@@ -349,13 +348,23 @@ pub async fn shell_save_image(
                 session.editable.clone(),
                 session.preview.clone(),
                 session.target.clone(),
+                session.capture_name.is_some(),
             )
         };
         if editable.is_some() && preview.as_ref() != Some(&image) {
             return Err("The imported preview changed. Reopen the image before saving.".into());
         }
         let prepared = prepare(image, &document, editable.as_ref(), !flat)?;
-        let target = if save_as || flat || target.is_none() {
+        // The first Save of a capture goes to the capture folder without a dialog;
+        // a cancelled folder picker falls back to the Save dialog.
+        let capture_folder = if capture && !save_as && !flat && target.is_none() {
+            crate::settings::ensure_capture_folder(&app)?
+        } else {
+            None
+        };
+        let mut target = if let Some(folder) = &capture_folder {
+            folder.join("capture.png")
+        } else if save_as || flat || target.is_none() {
             let mut dialog = app
                 .dialog()
                 .file()
@@ -407,7 +416,13 @@ pub async fn shell_save_image(
                 }
             }
         }
-        atomic_save(&target, &bytes)?;
+        if let Some(folder) = &capture_folder {
+            target = crate::capture::session::save_capture(folder, &bytes, || {
+                chrono::Local::now().naive_local()
+            })?;
+        } else {
+            atomic_save(&target, &bytes)?;
+        }
         let name = target
             .file_name()
             .unwrap_or_default()
