@@ -18,6 +18,7 @@ fn main() {
     tauri::Builder::default()
         .manage(shell::DroppedImage::default())
         .manage(shell::ImageSession::default())
+        .manage(privacy::PrivacyHistory::default())
         .manage(output::ShareState::default())
         .setup(|app| {
             menus::install(app)?;
@@ -40,6 +41,7 @@ fn main() {
             output::shell_copy_image,
             canvas::shell_transform_image,
             privacy::shell_privacy_image,
+            privacy::shell_restore_privacy,
             output::shell_save_image,
             output::shell_drag_image,
             output::shell_begin_drag,

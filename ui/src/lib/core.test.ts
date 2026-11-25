@@ -34,7 +34,7 @@ describe('core WebAssembly module', () => {
   it('undoes and redoes committed steps', async () => {
     const core = await createCore(bytes);
     core.reset(200, 100);
-    expect(core.undo()).toEqual({ elements: null, canUndo: false, canRedo: false });
+    expect(core.undo()).toEqual({ backgroundRevision: 0, elements: null, canUndo: false, canRedo: false });
     const { id } = core.add({ kind: 'line', start: [0, 0], end: [10, 10], color: '#e5194a', width: 4 });
     expect(core.commit()).toEqual({ changed: true, canUndo: true, canRedo: false });
     core.update(id, { kind: 'line', start: [5, 5], end: [10, 10], color: '#e5194a', width: 4 });

@@ -20,9 +20,10 @@ export interface WirePath { d: string; fill?: string; stroke?: string; width?: n
 /** Undo/redo availability after a history request. */
 export interface HistoryState { canUndo: boolean; canRedo: boolean }
 /** A state restored by undo/redo: every element, bottom-most first; null if there was no step. */
-export interface Restored extends HistoryState { elements: { id: string; shape: Shape; paths: WirePath[] }[] | null }
+export interface Restored extends HistoryState { backgroundRevision: number; elements: { id: string; shape: Shape; paths: WirePath[] }[] | null }
 
 export interface Core {
+  setBackgroundRevision(revision: number): void;
   filterPoints(points: Pt[]): Pt[];
   reset(width: number, height: number): void;
   add(shape: Shape): { id: string; paths: WirePath[] };
@@ -66,6 +67,7 @@ export async function createCore(bytes: BufferSource): Promise<Core> {
   }
 
   return {
+    setBackgroundRevision: revision => { call({ op: 'setBackgroundRevision', revision }); },
     filterPoints: points => call({ op: 'filterPoints', points }) as Pt[],
     reset: (width, height) => { call({ op: 'reset', canvas: [width, height] }); },
     add: shape => call({ op: 'add', shape }) as { id: string; paths: WirePath[] },

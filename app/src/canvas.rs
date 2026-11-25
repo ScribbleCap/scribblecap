@@ -63,7 +63,9 @@ pub async fn shell_transform_image(
         let image = transform(source.width(), source.height(), source.pixels(), operation).map_err(|e| e.to_string())?;
         let image =
             RasterImage::new(image.width, image.height, image.pixels).map_err(|e| e.to_string())?;
-        crate::shell::packet(&name, image).map(Response::new)
+        let packet = crate::shell::packet(&name, image)?;
+        crate::privacy::reset(&app)?;
+        Ok(Response::new(packet))
     })
     .await
     .map_err(|e| format!("Canvas transform stopped: {e}"))?

@@ -125,8 +125,8 @@ scheduled alongside the tasks below (D1–D3 and D6a can start now)._
   Raster operations implemented and tested; annotation transforms and undo
   integration remain. See [canvas-transforms.md](canvas-transforms.md).
 - [x] **M2-8 Pixelate and redact** (destructive; original replaced in stored resource).
-  Privacy commits flatten annotations and clear history/session resources;
-  extraction regression tests cover subsequent saves. See [decision 0015](decisions/0015-destructive-raster-privacy.md).
+  Background-only privacy edits preserve annotations and session undo;
+  extraction regression tests cover current-resource-only saves. See [decision 0017](decisions/0017-background-privacy-session-undo.md).
 - [~] **M2-9 Copy, drag-out, save / save as** in every supported format.
   Current annotations render through core. Save writes an editable PNG and never
   replaces an opened photo; Export writes a flat PNG, JPEG, WebP, TIFF, BMP or GIF.

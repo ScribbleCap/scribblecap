@@ -100,10 +100,27 @@
       if (alive) error = cause instanceof Error ? cause.message : String(cause);
     } finally { if (alive) busy = false; }
   }
+  function rasterCanvas(next: LoadedImage): HTMLCanvasElement {
+    const result = document.createElement('canvas'); result.width = next.width; result.height = next.height;
+    const context = result.getContext('2d'); if (!context) throw new Error('The image canvas could not be created.');
+    context.putImageData(new ImageData(next.pixels,next.width,next.height),0,0); return result;
+  }
   async function privacyEdit(rect: [number, number, number, number], operation: 'pixelate' | 'redact') {
     if (!bridge.desktop || !image || !core || busy || gesture) return;
-    const current = image, document = core.document();
-    await load(() => bridge.privacyImage(current, document, rect, operation));
+    busy = true; error = '';
+    const previous = image.privacyRevision ?? 0;
+    let changed = false;
+    try {
+      const next = await bridge.privacyImage(image, rect, operation); changed = true;
+      if (!alive) return;
+      const nextSource = rasterCanvas(next);
+      core.setBackgroundRevision(next.privacyRevision!); commit();
+      source = nextSource; image = next;
+      outputStatus = `${operation} applied to background. Annotations remain editable; Undo restores the previous background.`;
+    } catch (cause) {
+      if (changed) await bridge.restorePrivacy(previous).catch(report);
+      report(cause);
+    } finally { if (alive) busy = false; }
   }
   function openImage() {
     if (bridge.desktop) void load(bridge.openImage);
@@ -201,16 +218,30 @@
     if (!core) return;
     try { ({ canUndo, canRedo } = core.commit()); } catch (cause) { report(cause); }
   }
-  function travel(direction: 'undo' | 'redo') {
+  async function travel(direction: 'undo' | 'redo') {
     if (!core || !image || gesture || busy) return;
+    busy = true;
+    let changed = false;
+    const previousRevision = image.privacyRevision ?? 0;
+    let backgroundChanged = false;
     try {
       const restored = direction === 'undo' ? core.undo() : core.redo();
-      ({ canUndo, canRedo } = restored);
+      changed = !!restored.elements;
       if (!restored.elements) return;
-      items = restored.elements;
+      if (restored.backgroundRevision !== (image.privacyRevision ?? 0)) {
+        const next = await bridge.restorePrivacy(restored.backgroundRevision);
+        backgroundChanged = true;
+        if (!alive) return;
+        source = rasterCanvas(next); image = next;
+      }
+      ({ canUndo, canRedo } = restored); items = restored.elements;
       outputStatus = `${direction === 'undo' ? 'Undid' : 'Redid'} edit. ${items.length} annotations`;
       if (!items.some(item => item.id === selected)) selected = null;
-    } catch (cause) { report(cause); }
+    } catch (cause) {
+      if (backgroundChanged) await bridge.restorePrivacy(previousRevision).catch(report);
+      if (changed) { const rolledBack = direction === 'undo' ? core.redo() : core.undo(); ({ canUndo,canRedo } = rolledBack); }
+      report(cause);
+    } finally { if (alive) busy = false; }
   }
   function nudge(dx: number, dy: number) {
     const item = items.find(item => item.id === selected);
@@ -552,7 +583,7 @@
       <button onclick={() => saveImage(true, true)} disabled={!image || busy}>Export flat…</button>
     </div></details>
   </header>
-  {#if privacyMode}<p class="privacy-notice">{privacyMode === 'redact' ? 'Redact' : 'Pixelate'}: drag a region to permanently replace pixels, flatten annotations and clear undo history. Save a sanitized copy. Existing files are unchanged.</p>{/if}
+  {#if privacyMode}<p class="privacy-notice">{privacyMode === 'redact' ? 'Redact' : 'Pixelate'}: drag a region to replace background pixels. Annotations stay editable and session undo remains available. Save the current cleaned version; existing files are unchanged.</p>{/if}
   {#if error}<div class="error" role="alert"><span>{error}</span><button onclick={() => error = ''} aria-label="Dismiss error">×</button></div>{/if}
   <div class="workspace">
     <!-- svelte-ignore a11y_no_noninteractive_tabindex (The viewport is focusable for keyboard editing and panning; toolbar buttons provide zoom.) -->
@@ -576,7 +607,7 @@
   <footer class="statusbar">
     <span class="file-info" title={image?.name}>{image ? image.name : 'No image open'}</span>
     {#if image}<span class="dimensions">{image.width.toLocaleString()} × {image.height.toLocaleString()} px</span>{/if}
-    <span id="viewport-help" class="visually-hidden">{image ? 'Drag to draw. Privacy tools permanently flatten the image and clear history. Use Annotations for keyboard creation, selection and resizing; Privacy for numeric regions. Hold Space to pan. Arrow keys move the selection.' : `${mod}O to open, ${mod}V to paste.`}</span>
+    <span id="viewport-help" class="visually-hidden">{image ? 'Drag to draw. Privacy tools edit the background and keep session undo. Use Annotations for keyboard creation, selection and resizing; Privacy for numeric regions. Hold Space to pan. Arrow keys move the selection.' : `${mod}O to open, ${mod}V to paste.`}</span>
     <button class="notices-link" onclick={() => notices.showModal()}>Third-party notices</button>
     <div class="zoom-actions" aria-label="Zoom controls">
       <button onclick={fit} disabled={!image} title={`Fit image (${mod}0)`}>Fit</button>

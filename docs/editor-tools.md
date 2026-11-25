@@ -12,18 +12,25 @@ Strokes can be selected and moved; resize them with the numeric annotation contr
 
 ## Destructive privacy (M2-8)
 
-P selects Pixelate, X selects Redact; drag a rectangular region to apply. A visible
-notice explains that this permanently replaces pixels, flattens annotations and
-clears history. Privacy also offers numeric bounds for keyboard users. Drag regions
-round outwards and clip to the canvas; numeric regions must fit entirely.
+P selects Pixelate, X selects Redact; drag a rectangular background region to apply.
+Privacy also offers numeric bounds for keyboard users. Drag regions round outwards
+and clip to the canvas; numeric regions must fit entirely.
 
 Redact writes opaque black. Pixelate averages clipped 12-pixel blocks and makes
 results opaque; it is not a substitute for redaction of sensitive information.
-Applying either operation sanitizes the flattened pixels, clears the native imported
-resources and save target, and resets the UI document and history. Save creates a
-new sanitized file; old disk files, clipboard images and previous exports remain.
-Future annotations use only the sanitized background as their embedded resource.
-Failed processing preserves the current image/session. See decision 0015.
+Annotations stay editable above the changed background. Imported documents keep
+their vector elements while their background is sanitized and unused resources
+are removed. Sensitive text in annotation elements is not redacted by this operation.
+
+Privacy edits and annotation edits share session undo/redo. Native snapshots retain
+previous backgrounds in memory, with a 512 MiB pixel/encoded-resource history budget;
+an operation exceeding it fails without changing the current state. Saves, exports,
+copy and drag contain only the active background, never older snapshots. Undoing
+redaction restores original pixels as the current image: redo the privacy edit
+before saving or sharing the cleaned version. Starting a new document clears history.
+Old disk files, clipboard images and previous exports are unchanged.
+
+See decision 0017, which supersedes the flatten-and-clear policy in decision 0015.
 Privacy requires the native desktop shell, as do save and clipboard output.
 
 ## Colour, size and native menus (M2-5)

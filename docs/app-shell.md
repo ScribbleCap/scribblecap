@@ -155,7 +155,9 @@ Document-wide transforms and undo history remain pending; see [canvas-transforms
 
 ## Privacy session replacement
 
-`shell_privacy_image` flattens current annotations, applies core pixel replacement,
-and clears imported resources and save destination only after a complete response
-is allocated. The UI resets its document/history using the sanitized pixels. See
-[editor-tools.md](editor-tools.md) and decision 0015 for behavior and limitations.
+`shell_privacy_image` sanitizes the background while preserving annotation elements.
+It returns a u32 little-endian session revision followed by a SCIM image packet.
+`shell_restore_privacy` switches native background snapshots for session undo/redo.
+Only the active session's resources enter output; old snapshots are not serialized.
+Both commands allocate their response before changing the current native session.
+See [editor-tools.md](editor-tools.md) and decision 0017 for limits and behavior.

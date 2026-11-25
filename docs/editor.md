@@ -52,8 +52,8 @@ The layout from the [design review](design-review.md):
 Undo and Redo buttons sit left of the tools. Each finished edit is one step: a drawn
 shape, a move, a resize, a delete, or a run of arrow-key nudges (one step when the
 key is released). A click that draws nothing adds no step. A new edit clears redo;
-opening or pasting an image starts a new history. Destructive privacy commits also
-flatten annotations and reset history (decision 0015). Undo is ignored while a drag is in
+opening or pasting an image starts a new history. Background privacy edits participate in
+the same session history and preserve annotations (decision 0017). Undo is ignored while a drag is in
 progress. After undo, the selection stays if its shape still exists.
 
 The history lives in the core (`scribblecap_core::History`) as whole-document
@@ -77,11 +77,12 @@ changes nothing.
 | `{"op":"add","shape":{…}}` | `{"id","paths"}`; the shape goes on top |
 | `{"op":"update","id","shape":{…}}` | `{"paths"}`; keeps id and stacking order |
 | `{"op":"remove","id"}` | `null` |
+| `{"op":"setBackgroundRevision","revision":n}` | `null`; sets a runtime-only background identity for the next undo commit; omitted from output document JSON |
 | `{"op":"filterPoints","points":[[x,y],…]}` | filtered points for a completed stroke (maximum 8192 input points) |
 | `{"op":"paint"}` | `[{"id","paths"}]`, bottom-most first |
 | `{"op":"document"}` | the document JSON ([file-format.md](file-format.md)) |
 | `{"op":"commit"}` | `{"changed","canUndo","canRedo"}`; ends an undoable step if the document changed |
-| `{"op":"undo"}` / `{"op":"redo"}` | `{"elements","canUndo","canRedo"}`; `elements` is `[{"id","shape","paths"}]` bottom-most first, or `null` if there was no step |
+| `{"op":"undo"}` / `{"op":"redo"}` | `{"elements","backgroundRevision","canUndo","canRedo"}`; `elements` is `[{"id","shape","paths"}]` bottom-most first, or `null` if there was no step |
 
 Shapes use the element JSON from `file-format.md` without `id`. Ids are `el-1`,
 `el-2`, … and are not reused within a document, even after undo.

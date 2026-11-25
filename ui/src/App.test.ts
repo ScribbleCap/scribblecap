@@ -6,7 +6,7 @@ import * as bridge from './lib/bridge';
 import type { LoadedImage } from './lib/image-packet';
 
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
-vi.mock('./lib/bridge', () => ({ droppedImage: vi.fn(), saveImage: vi.fn(), copyImage: vi.fn(), dragImage: vi.fn(), privacyImage: vi.fn(), beginDrag: vi.fn(), cancelDrag: vi.fn(), desktop: true, openImage: vi.fn(), pasteImage: vi.fn(), browserImage: vi.fn() }));
+vi.mock('./lib/bridge', () => ({ droppedImage: vi.fn(), saveImage: vi.fn(), copyImage: vi.fn(), dragImage: vi.fn(), restorePrivacy: vi.fn(), privacyImage: vi.fn(), beginDrag: vi.fn(), cancelDrag: vi.fn(), desktop: true, openImage: vi.fn(), pasteImage: vi.fn(), browserImage: vi.fn() }));
 // The real core WebAssembly module (built by `pnpm test`), loaded from disk; a fresh
 // instance per test keeps documents independent.
 vi.mock('./lib/core', async original => {
@@ -26,7 +26,7 @@ beforeEach(() => {
   vi.mocked(listen).mockReset().mockResolvedValue(vi.fn());
   vi.mocked(bridge.droppedImage).mockReset();
   vi.mocked(bridge.saveImage).mockReset();
-  vi.mocked(bridge.privacyImage).mockReset();
+  vi.mocked(bridge.privacyImage).mockReset(); vi.mocked(bridge.restorePrivacy).mockReset();
   vi.mocked(bridge.copyImage).mockReset().mockResolvedValue();
   vi.mocked(bridge.dragImage).mockReset().mockResolvedValue();
   vi.mocked(bridge.beginDrag).mockReset().mockResolvedValue(27);
@@ -227,15 +227,26 @@ describe('annotation tools', () => {
     const doc = JSON.parse(vi.mocked(bridge.copyImage).mock.calls.at(-1)![1]);
     expect(doc.elements[0].stamp).toBe('signal-check');
   });
-  it('commits a privacy region through Rust and clears annotation undo history', async () => {
+  it('keeps annotations editable across background privacy edits, undo and redo', async () => {
     const viewport = await openBig();
-    await drag(viewport, [220,220],[300,280]);
-    vi.mocked(bridge.privacyImage).mockResolvedValue(image('clean.png'));
-    await fireEvent.click(screen.getByRole('button', { name: 'Apply privacy edit permanently' }));
+    await drag(viewport,[220,220],[300,280]);
+    const large = { name: 'test.png', width: 400, height: 200, pixels: new Uint8ClampedArray(400*200*4) };
+    vi.mocked(bridge.privacyImage).mockResolvedValue({ ...large, privacyRevision: 1 });
+    vi.mocked(bridge.restorePrivacy).mockImplementation(async revision => ({ ...large, privacyRevision: revision }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Apply privacy edit' }));
     await waitFor(() => expect(bridge.privacyImage).toHaveBeenCalled());
-    await waitFor(() => expect(screen.getByText('clean.png')).toBeTruthy());
-    expect((screen.getByRole('button', { name: 'Undo' }) as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getByText('Annotations (0)')).toBeTruthy();
+    await waitFor(() => expect(screen.getByText('Annotations (1)')).toBeTruthy());
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Undo' }) as HTMLButtonElement).disabled).toBe(false));
+    await fireEvent.keyDown(window,{key:'z',ctrlKey:true});
+    await waitFor(() => expect(bridge.restorePrivacy).toHaveBeenCalledWith(0));
+    expect(screen.getByText('Annotations (1)')).toBeTruthy();
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Redo' }) as HTMLButtonElement).disabled).toBe(false));
+    await fireEvent.keyDown(window,{key:'z',ctrlKey:true,shiftKey:true});
+    await waitFor(() => expect(bridge.restorePrivacy).toHaveBeenCalledWith(1));
+    await fireEvent.click(screen.getByRole('button', { name: '1. arrow' }));
+    await fireEvent.keyDown(viewport,{key:'ArrowRight'}); await fireEvent.keyUp(viewport,{key:'ArrowRight'});
+    await fireEvent.click(screen.getByRole('button', { name: 'Copy image' }));
+    expect(JSON.parse(vi.mocked(bridge.copyImage).mock.calls.at(-1)![1]).elements).toHaveLength(1);
   });
   it('navigates tools with the keyboard and preserves native text-field keys', async () => {
     await openBig();

@@ -6,14 +6,14 @@
 </script>
 <details class="privacy-controls"><summary>Privacy</summary>
   <form onsubmit={(event) => { event.preventDefault(); apply([x, y, width, height], operation); }}>
-    <p>Apply permanently replaces the image pixels, flattens annotations and clears undo history. Save to keep a sanitized copy. Existing files are unchanged.</p>
+    <p>Apply replaces background pixels while keeping annotations editable. Undo and redo remain available for this session; saved files contain only the current background. Existing files are unchanged.</p>
     <label>Privacy operation <select bind:value={operation}><option value="redact">Redact (solid black)</option><option value="pixelate">Pixelate (12 px blocks)</option></select></label>
     <p>Pixelation obscures detail; use solid redaction for sensitive information.</p>
     <label>Region left <input type="number" min="0" max={image ? image.width - 1 : 0} step="1" required bind:value={x} /></label>
     <label>Region top <input type="number" min="0" max={image ? image.height - 1 : 0} step="1" required bind:value={y} /></label>
     <label>Region width <input type="number" min="1" max={image ? image.width - x : 1} step="1" required bind:value={width} /></label>
     <label>Region height <input type="number" min="1" max={image ? image.height - y : 1} step="1" required bind:value={height} /></label>
-    <button disabled={disabled || !image} type="submit">Apply privacy edit permanently</button>
+    <button disabled={disabled || !image} type="submit">Apply privacy edit</button>
   </form>
 </details>
 <style>
