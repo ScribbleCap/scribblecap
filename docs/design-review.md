@@ -84,7 +84,8 @@ left of the window controls ( – ▢ ✕ ). Linux follows the theme's button la
   start. Open and Paste live in the File menu, ⌘/Ctrl O / V, and the empty state.
 - **Top right: tools** (select, arrow, line, rectangle, ellipse, text, marker,
   pixelate, step number), each on one key; then the current annotation colour as
-  one swatch and the stroke size; then a **⋯ More** menu (Canvas, Annotations and the
+  one swatch and the stroke size (the panel also holds the stamp artwork picker while
+  Stamp is selected); then a **⋯ More** menu (Canvas, Annotations and the
   numeric Privacy controls); then share (copy, save).
 - **Bottom: status bar** at readable size (12–13px, not 10px): file name and
   dimensions on the left, the drag-out tab in the centre, Fit and zoom on the right.

@@ -1,6 +1,7 @@
 <script lang="ts">
+  import type { Snippet } from 'svelte';
   import type { Style } from './shapes';
-  let { style, disabled, change }: { style: Style; disabled: boolean; change: (style: Style) => void } = $props();
+  let { style, disabled, change, extra }: { style: Style; disabled: boolean; change: (style: Style) => void; extra?: Snippet } = $props();
   const colours = ['#e5194a', '#ff9500', '#ffcc00', '#34c759', '#007aff', '#af52de', '#ffffff', '#000000'];
 </script>
 <details class="style-controls">
@@ -15,6 +16,7 @@
     <label>Stroke size <select disabled={disabled} value={style.width} onchange={(event) => change({ ...style, width: Number(event.currentTarget.value) })}>
       {#each [2, 4, 6, 10, 16] as size (size)}<option value={size}>{size} px</option>{/each}
     </select></label>
+    {@render extra?.()}
   </div>
 </details>
 <style>

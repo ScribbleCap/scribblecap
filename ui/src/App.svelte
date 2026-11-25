@@ -628,7 +628,6 @@
     </div>
     <!-- Right: tools, then colour and size, then more, then share (design review D4). -->
     <div class="right-actions">
-      {#if tool === 'stamp'}<label class="stamp-choice"><span class="visually-hidden">Stamp artwork</span><select bind:value={stamp}><option value="signal-check">Signal check</option><option value="signal-alert">Signal alert</option><option value="signal-spark">Signal spark</option></select></label>{/if}
       <div class="tools" role="toolbar" tabindex="-1" aria-label="Tools" onkeydown={toolbarKey}>
         {#each TOOLS as t (t.tool)}
           <button class="tool" class:shape-tool={SHAPES.includes(t.tool)} tabindex={!privacyMode && tool === t.tool ? 0 : -1} aria-keyshortcuts={t.key} aria-label={t.label} aria-pressed={!privacyMode && tool === t.tool} title={`${t.label} (${t.key})`} disabled={!image || busy} onclick={() => chooseTool(t.tool)}>
@@ -654,7 +653,9 @@
         {/each}
       </div>
       <label class="compact-tools">Tool <select value={privacyMode ?? tool} disabled={!image || busy} onchange={(event) => { const v = event.currentTarget.value; if (v === 'pixelate' || v === 'redact') { if (!gesture) { privacyMode = v; selected = null; } } else chooseTool(v as Tool); }}>{#each TOOLS as t (t.tool)}<option value={t.tool}>{t.label} ({t.key})</option>{/each}{#each PRIVACY_TOOLS as p (p.mode)}<option value={p.mode} disabled={!bridge.desktop}>{p.label} ({p.key})</option>{/each}</select></label>
-      <StyleControls {style} disabled={!image || busy || !!gesture} change={changeStyle} />
+      <StyleControls {style} disabled={!image || busy || !!gesture} change={changeStyle}>
+        {#snippet extra()}{#if tool === 'stamp'}<label class="stamp-choice">Stamp artwork <select bind:value={stamp}><option value="signal-check">Signal check</option><option value="signal-alert">Signal alert</option><option value="signal-spark">Signal spark</option></select></label>{/if}{/snippet}
+      </StyleControls>
       <details class="more-actions">
         <summary aria-label="More: canvas, annotations and privacy" title="More">⋯</summary>
         <div class="more-panel">
