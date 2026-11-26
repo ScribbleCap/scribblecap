@@ -83,6 +83,15 @@ pub fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Option<Actio
     Ok(Some(Action::Capture { mode, delay }))
 }
 
+/// Startup and single-instance forwarding share the visible error path. Release
+/// Windows GUI builds have no console in which to display invalid arguments.
+pub fn launch_action(args: impl IntoIterator<Item = String>) -> Option<Action> {
+    match parse_args(args) {
+        Ok(action) => action,
+        Err(message) => Some(Action::Error { message }),
+    }
+}
+
 pub fn show(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
@@ -436,6 +445,24 @@ pub fn initialize(app: &AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn launch_keeps_the_editor_available_for_invalid_arguments() {
+        let launch = |args: &[&str]| launch_action(args.iter().map(|s| (*s).to_owned()));
+        assert_eq!(launch(&[]), None);
+        assert_eq!(
+            launch(&["capture", "screen"]),
+            Some(Action::Capture {
+                mode: CaptureMode::Screen,
+                delay: 0
+            })
+        );
+        for args in [&["--unknown"][..], &["capture", "--delay", "bad"][..]] {
+            let Some(Action::Error { message }) = launch(args) else {
+                panic!("must queue a visible error, not quit")
+            };
+            assert!(message.contains("Usage: scribblecap-app capture"));
+        }
+    }
     #[test]
     fn cli_modes_delays_and_invalid_arguments() {
         let parse = |args: &[&str]| parse_args(args.iter().map(|s| (*s).to_owned()));

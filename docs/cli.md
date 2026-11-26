@@ -97,7 +97,8 @@ scribblecap-app capture previous
 ```
 
 Modes are region (default), window, screen and previous. Delay is an integer 0–60
-seconds; invalid arguments report usage. If an instance is running, the request is
+seconds; invalid arguments open the editor and show usage in its dismissible error
+message, including Windows GUI builds without a console. If an instance is running, the request is
 forwarded to it; otherwise the app starts and queues it until the editor is ready.
 The same unsaved-work guard and capture flow apply as the in-app Capture menu.
 On Wayland the existing portal restrictions apply. Native forwarding and capture

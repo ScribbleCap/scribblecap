@@ -251,7 +251,8 @@ separately in [cli.md](cli.md#desktop-app-capture-entry-point).
 
 - macOS: use the region shortcut from another app; approve Screen Recording if
   needed; verify timer, previous region and every menu item; switch system theme;
-  hide/show the Dock icon; close to menu bar and Show editor; test Cmd+Q with clean
+  hide/show the Dock icon; close to menu bar and Show editor; click the visible Dock
+  icon to reopen and focus the hidden/minimized editor; test Cmd+Q with clean
   and dirty images and Save/Discard/Cancel. Check the default does not conflict
   with custom shortcuts on the test machine (OS screenshot defaults use 3/4/5).
 - Windows: verify tray icon/theme/menu, shortcut from another app, occupied-key
@@ -265,6 +266,8 @@ separately in [cli.md](cli.md#desktop-app-capture-entry-point).
   test a desktop without the portal and confirm the disabled reason in Settings.
 - Every OS: dirty annotations must survive cancelled background capture and Quit;
   verify capture never proceeds before the Save/Discard/Cancel decision. Launch
-  CLI before the page is ready and while an instance is hidden. Duplicate requests
+  CLI before the page is ready and while an instance is hidden. Launch with an
+  unknown argument on Windows: the editor opens and displays usage instead of
+  exiting silently. Repeat with an instance already running. Duplicate requests
   must not start simultaneous captures. Verify settings survive restart and old
   two-field settings files load. None of these native checks is claimed by unit tests.

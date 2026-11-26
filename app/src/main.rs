@@ -20,17 +20,12 @@ mod shell;
 use tauri::{Emitter, Manager};
 
 fn main() {
-    let initial = background::parse_args(std::env::args().skip(1)).unwrap_or_else(|error| {
-        eprintln!("{error}");
-        std::process::exit(2)
-    });
+    let initial = background::launch_action(std::env::args().skip(1));
     let builder =
         tauri::Builder::default().plugin(tauri_plugin_single_instance::init(|app, args, _| {
-            match background::parse_args(args.into_iter().skip(1)) {
-                Ok(Some(action)) => background::request(app, action),
-                Ok(None) => background::request(app, background::Action::Show),
-                Err(message) => background::request(app, background::Action::Error { message }),
-            }
+            let action = background::launch_action(args.into_iter().skip(1))
+                .unwrap_or(background::Action::Show);
+            background::request(app, action);
         }));
     let builder = if scribblecap_capture::is_wayland() {
         builder
@@ -108,6 +103,10 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("error while building ScribbleCap")
         .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if matches!(event, tauri::RunEvent::Reopen { .. }) {
+                background::show(app);
+            }
             if let tauri::RunEvent::ExitRequested { api, .. } = &event
                 && !app
                     .state::<background::Runtime>()

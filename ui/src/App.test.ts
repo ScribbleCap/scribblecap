@@ -808,3 +808,12 @@ describe('capture from the editor', () => {
     expect((await screen.findByRole('switch', { name: 'Auto-save captures' }) as HTMLInputElement).checked).toBe(false);
   });
 });
+
+it('shows a queued startup argument error without preventing the editor from opening', async () => {
+  render(App);
+  await waitFor(() => expect(vi.mocked(listen).mock.calls.some(call => call[0] === 'background-action')).toBe(true));
+  const handler = vi.mocked(listen).mock.calls.find(call => call[0] === 'background-action')![1];
+  await handler({ event: 'background-action', id: 0, payload: { kind: 'error', message: 'Usage: scribblecap-app capture' } });
+  expect(screen.getByRole('alert').textContent).toContain('Usage: scribblecap-app capture');
+  expect(screen.getByRole('button', { name: 'Open an image' })).toBeTruthy();
+});
