@@ -1,5 +1,6 @@
 <script lang="ts">
   import fontLicense from './licenses/NotoSans-OFL.txt?raw';
+  import { titlebarMenus } from './lib/titlebar-menus';
   import { onMount, onDestroy } from 'svelte';
   import { listen } from '@tauri-apps/api/event';
   import * as bridge from './lib/bridge';
@@ -61,6 +62,12 @@
   let busy = $state(false);
   let error = $state('');
   let outputStatus = $state('');
+  $effect(() => {
+    const message = outputStatus;
+    if (!message) return;
+    const timer = window.setTimeout(() => { outputStatus = ''; }, 4000);
+    return () => window.clearTimeout(timer);
+  });
   let thumbnail = $state('');
   let shareGesture: { id: number | null; cancelled: boolean } | null = null;
   let alive = true;
@@ -363,6 +370,13 @@
       const details = event.target.closest<HTMLDetailsElement>('details[open]');
       if (details) { details.open = false; details.querySelector('summary')?.focus(); event.preventDefault(); return; }
     }
+    if (event.key === 'Escape') {
+      if (gesture?.kind === 'privacy') {
+        const id = gesture.id; gesture = null;
+        if (stage.hasPointerCapture(id)) stage.releasePointerCapture(id);
+      }
+      privacyMode = null; selected = null; event.preventDefault(); return;
+    }
     if (editableTarget(event.target) || event.altKey) return;
     const key = event.key.toLowerCase();
     if (event.metaKey || event.ctrlKey) {
@@ -387,7 +401,6 @@
       changeStyle({ ...style, width: sizes[Math.max(0, Math.min(4, index + (event.key === ']' ? 1 : -1)))] }); return;
     }
     if (event.key === ' ') { event.preventDefault(); spaceHeld = true; return; }
-    if (event.key === 'Escape') { selected = null; return; }
     if ((event.key === 'Delete' || event.key === 'Backspace') && selected) { event.preventDefault(); removeSelected(); commit(); return; }
     if (!event.shiftKey && TOOL_KEYS[key]) { event.preventDefault(); chooseTool(TOOL_KEYS[key]); return; }
     const delta: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
@@ -598,8 +611,8 @@
     // Selection handles in screen pixels, in the system accent colour.
     if (gesture?.kind === 'privacy') {
       const [x,y,w,h] = boxFrom(gesture.from,gesture.to);
-      context.fillStyle = 'rgba(0,0,0,0.45)'; context.fillRect(x,y,w,h);
-      context.strokeStyle = token('--accent', '#0a64d8'); context.lineWidth = 2 / view.scale; context.strokeRect(x,y,w,h);
+      context.fillStyle = 'rgba(0,0,0,0.45)'; context.fillRect(x * view.scale + view.x,y * view.scale + view.y,w * view.scale,h * view.scale);
+      context.strokeStyle = token('--accent', '#0a64d8'); context.lineWidth = 2; context.strokeRect(x * view.scale + view.x,y * view.scale + view.y,w * view.scale,h * view.scale);
     }
     const chosen = items.find(item => item.id === selected);
     if (chosen && gesture?.kind !== 'create') {
@@ -615,7 +628,7 @@
 
 <svelte:window ondrop={onDrop} ondragover={(event) => event.preventDefault()} onkeydown={onKey} onkeyup={onKeyUp} onpaste={onPaste} onblur={() => spaceHeld = false} onpointerup={cancelShare} onpointercancel={cancelShare} />
 <main aria-busy={busy} class:mac={mac && bridge.desktop}>
-  <header class="titlebar" data-tauri-drag-region>
+  <header use:titlebarMenus class="titlebar" data-tauri-drag-region>
     {#if bridge.desktop}<CaptureMenu {busy} capture={startCapture} timer={startTimer} settings={() => settingsOpen = true} />{/if}
     <!-- Left: Capture, then history. Open and Paste are in the File menu, the shortcuts and the empty state. -->
     <div class="history-actions">
@@ -672,7 +685,7 @@
       </div></details>
     </div>
   </header>
-  {#if privacyMode}<p class="privacy-notice">{privacyMode === 'redact' ? 'Redact' : 'Pixelate'}: drag a region to replace background pixels. Annotations stay editable and session undo remains available. Save the current cleaned version; existing files are unchanged.</p>{/if}
+  {#if privacyMode}<p class="privacy-notice">Drag over the area to {privacyMode}. <span>Esc to stop</span></p>{/if}
   {#if error}<div class="error" role="alert"><span>{error}</span><button onclick={() => error = ''} aria-label="Dismiss error">×</button></div>{/if}
   <div class="workspace">
     <!-- svelte-ignore a11y_no_noninteractive_tabindex (The viewport is focusable for keyboard editing and panning; toolbar buttons provide zoom.) -->

@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor, within, act } from '@testing-library/svelte';
 import App from './App.svelte';
 import { listen } from '@tauri-apps/api/event';
 import * as bridge from './lib/bridge';
@@ -47,6 +47,8 @@ beforeEach(() => {
   vi.stubGlobal('ImageData', class { constructor(public data: Uint8ClampedArray, public width: number, public height: number) {} });
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ scale: vi.fn(), putImageData: vi.fn(), setTransform: transform, clearRect: vi.fn(), fillRect: vi.fn(), drawImage: vi.fn(), createPattern: vi.fn(), strokeRect: vi.fn(), save: vi.fn(), restore: vi.fn(), beginPath: vi.fn(), rect: vi.fn(), clip: vi.fn(), fill: vi.fn(), stroke: vi.fn() } as unknown as CanvasRenderingContext2D);
 });
+
+afterEach(() => vi.useRealTimers());
 
 describe('image shell', () => {
   it('starts with an accessible empty state and disabled zoom', () => {
@@ -167,6 +169,34 @@ describe('annotation tools', () => {
     await fireEvent.pointerUp(target, { pointerId: 1 });
   };
   const pressed = () => screen.getAllByRole('button', { pressed: true }).filter(b => b.closest('[role=toolbar]')).map(b => b.getAttribute('aria-label'));
+  it('projects a privacy drag preview at non-unit zoom after panning', async () => {
+    const viewport = await openBig();
+    await fireEvent.click(screen.getByRole('button',{name:'Zoom in'}));
+    await fireEvent.keyDown(window,{key:' '}); await drag(viewport,[210,210],[260,240]); await fireEvent.keyUp(window,{key:' '});
+    const context = vi.mocked(HTMLCanvasElement.prototype.getContext).mock.results[0].value as CanvasRenderingContext2D;
+    vi.mocked(context.fillRect).mockClear(); vi.mocked(context.strokeRect).mockClear();
+    await fireEvent.keyDown(window,{key:'x'});
+    await fireEvent.pointerDown(viewport,{pointerId:2,button:0,isPrimary:true,clientX:280,clientY:260});
+    await fireEvent.pointerMove(viewport,{pointerId:2,isPrimary:true,clientX:380,clientY:310});
+    expect(vi.mocked(context.fillRect)).toHaveBeenLastCalledWith(280,260,100,50);
+    expect(vi.mocked(context.strokeRect)).toHaveBeenLastCalledWith(280,260,100,50);
+    expect(context.lineWidth).toBe(2);
+    await fireEvent.keyDown(screen.getByRole('button',{name:'Redact'}),{key:'Escape'});
+    await fireEvent.pointerUp(viewport,{pointerId:2});
+    expect(bridge.privacyImage).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Esc to stop/)).toBeNull();
+  });
+  it('expires status after four seconds and restarts the timer for a new message', async () => {
+    await openBig(); vi.useFakeTimers();
+    await fireEvent.keyDown(window,{key:'m'});
+    expect(screen.getByRole('status').textContent).toContain('marker');
+    await act(() => vi.advanceTimersByTimeAsync(3000));
+    await fireEvent.keyDown(window,{key:'h'});
+    await act(() => vi.advanceTimersByTimeAsync(1000));
+    expect(screen.getByRole('status').textContent).toContain('highlighter');
+    await act(() => vi.advanceTimersByTimeAsync(3000));
+    expect(screen.getByRole('status').textContent).toBe('');
+  });
 
   it('starts with the arrow tool and switches tools by key and button', async () => {
     await openBig();

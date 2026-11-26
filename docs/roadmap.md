@@ -100,6 +100,12 @@ HEIF/AVIF, SVG and PDF follow after the first release (M6).
 
 ## M2 — Editor MVP (images)
 
+- [~] **Editor feedback follow-up** (`fix/editor-feedback`): correct privacy preview
+  projection, transient status expiry, concise cancellable privacy hint and menu
+  dismissal. Automated tests pass; macOS maintainer re-check and native toolbar
+  layout inspection remain pending; see [editor-tools.md](editor-tools.md#editor-feedback-fixes-macos-follow-up).
+
+
 _UI work follows the [design review](design-review.md): its D1–D7 items are
 scheduled alongside the tasks below (D1–D3 and D6a can start now)._
 
