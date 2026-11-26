@@ -12,7 +12,7 @@ publish.workspace = true
 tauri-build.workspace = true
 
 [dependencies]
-tauri.workspace = true
+tauri = { workspace = true, features = ["tray-icon"] }
 serde.workspace = true
 serde_json.workspace = true
 scribblecap-core.workspace = true
@@ -20,6 +20,8 @@ scribblecap-formats.workspace = true
 scribblecap-capture.workspace = true
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 tempfile = "3"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-single-instance = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-clipboard-manager = "2"
 
@@ -30,5 +32,7 @@ workspace = true
 drag = "2.1.1"
 
 [target.'cfg(target_os = "linux")'.dependencies]
+ashpd = { version = "0.14.3", default-features = false, features = ["tokio", "global_shortcuts"] }
+futures-util = "0.3"
 gtk = "0.18"
 url = "2"

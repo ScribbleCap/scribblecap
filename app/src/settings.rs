@@ -7,11 +7,26 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
-#[derive(Serialize, Deserialize, Default, Clone, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Settings {
     pub capture_folder: Option<PathBuf>,
     pub auto_save: bool,
+    pub capture_hotkey: String,
+    pub keep_running: bool,
+    pub hide_dock_icon: bool,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            capture_folder: None,
+            auto_save: false,
+            capture_hotkey: "CmdOrCtrl+Shift+Digit2".into(),
+            keep_running: true,
+            hide_dock_icon: false,
+        }
+    }
 }
 
 pub struct SettingsState(pub Mutex<Settings>);
@@ -201,12 +216,14 @@ mod tests {
             load(&path),
             Settings {
                 capture_folder: None,
-                auto_save: false
+                auto_save: false,
+                ..Settings::default()
             }
         );
         let s = Settings {
             capture_folder: Some(dir.path().into()),
             auto_save: true,
+            ..Settings::default()
         };
         store(&path, &s).unwrap();
         assert_eq!(load(&path), s);
@@ -220,6 +237,9 @@ mod tests {
         assert_eq!(load(&path), Settings::default());
         std::fs::write(&path, br#"{"autoSave":true,"theme":"dark"}"#).unwrap();
         assert!(load(&path).auto_save);
+        assert_eq!(load(&path).capture_hotkey, "CmdOrCtrl+Shift+Digit2");
+        assert!(load(&path).keep_running);
+        assert!(!load(&path).hide_dock_icon);
     }
 
     #[test]
@@ -235,4 +255,59 @@ mod tests {
             std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o755)).unwrap();
         }
     }
+}
+
+#[tauri::command]
+pub async fn shell_set_background_settings(
+    app: AppHandle,
+    hotkey: String,
+    keep_running: bool,
+    hide_dock_icon: bool,
+) -> Result<Settings, String> {
+    hotkey
+        .parse::<tauri_plugin_global_shortcut::Shortcut>()
+        .map_err(|e| format!("Invalid shortcut: {e}"))?;
+    let old = app
+        .state::<SettingsState>()
+        .0
+        .lock()
+        .map_err(|_| "Settings are unavailable")?
+        .clone();
+    let retry = app
+        .state::<crate::background::Runtime>()
+        .status
+        .lock()
+        .map(|s| s.hotkey_available && s.hotkey_error.is_some())
+        .unwrap_or(false);
+    if (hotkey != old.capture_hotkey || retry)
+        && let Err(error) = crate::background::register_hotkey(&app, &hotkey).await
+    {
+        let available = app
+            .state::<crate::background::Runtime>()
+            .status
+            .lock()
+            .map(|s| s.hotkey_available)
+            .unwrap_or(false);
+        crate::background::set_hotkey_error(&app, Some(error.clone()), available);
+        return Err(error);
+    }
+    if let Err(error) = crate::background::dock_policy(&app, hide_dock_icon) {
+        if hotkey != old.capture_hotkey {
+            let _ = crate::background::register_hotkey(&app, &old.capture_hotkey).await;
+        }
+        return Err(error);
+    }
+    let state = app.state::<SettingsState>();
+    let saved = update(&app, &state, |s| {
+        s.capture_hotkey = hotkey.clone();
+        s.keep_running = keep_running;
+        s.hide_dock_icon = hide_dock_icon
+    });
+    if saved.is_err() {
+        if hotkey != old.capture_hotkey {
+            let _ = crate::background::register_hotkey(&app, &old.capture_hotkey).await;
+        }
+        let _ = crate::background::dock_policy(&app, old.hide_dock_icon);
+    }
+    saved
 }

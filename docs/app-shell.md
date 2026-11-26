@@ -221,3 +221,50 @@ decision: [0016](decisions/0016-in-app-capture.md).
 - [ ] Read-only capture folder: asks for another folder; no loop.
 - [ ] Auto-save on and off: files and names as above, no overwrites; Alt+F4 on an
   overlay restores the editor.
+
+## Background capture (M4-6)
+
+The tray/menu-bar menu offers Region, Window, Full screen, Previous region, 3/5/10 s
+Timer, Show editor, Settings and Quit. Previous region enables after a region is
+captured; Wayland keeps Window/Previous unavailable. The default global region key
+is Command+Shift+2 on macOS, Control+Shift+2 on Windows/Linux. Settings accepts
+plugin shortcut spelling such as CmdOrCtrl+Shift+Digit2; failures (including an
+occupied key) are shown rather than stopping app startup. On Wayland a supporting
+GlobalShortcuts portal asks for approval and may choose the actual shortcut; its
+registered description is displayed. No portal means that setting is disabled.
+
+Closing hides the editor only when a tray exists and “Keep running in the tray/menu
+bar when the window is closed” is on. This defaults on for supported Windows/macOS
+and Linux trays; without a Linux StatusNotifier watcher (for example stock GNOME),
+no tray is created and closing quits normally. No crash or forced hidden window.
+The document remains in memory when hidden. Show editor restores it. Quit always
+uses the existing Save/Discard/Cancel guard before anything can be discarded,
+cancels capture and waits for ongoing work. macOS can hide the Dock icon while a
+menu-bar icon is available. Settings live in the same JSON file as capture settings.
+
+Tray/hotkey/CLI requests wait for the editor's listener-ready handshake, then use
+its existing unsaved-work prompt and the existing Rust capture/countdown flow.
+They work with the editor hidden or unfocused. The app executable's CLI is documented
+separately in [cli.md](cli.md#desktop-app-capture-entry-point).
+
+### Manual background checklist (pending)
+
+- macOS: use the region shortcut from another app; approve Screen Recording if
+  needed; verify timer, previous region and every menu item; switch system theme;
+  hide/show the Dock icon; close to menu bar and Show editor; test Cmd+Q with clean
+  and dirty images and Save/Discard/Cancel. Check the default does not conflict
+  with custom shortcuts on the test machine (OS screenshot defaults use 3/4/5).
+- Windows: verify tray icon/theme/menu, shortcut from another app, occupied-key
+  failure/rebinding, close-to-tray and Show editor; Quit while dirty and while a
+  timer/capture is active; first-instance and forwarded CLI capture requests.
+- Linux X11: check an AppIndicator/StatusNotifier tray desktop and a no-tray desktop;
+  no tray must disable keep-running and leave close/quit usable; check shortcuts,
+  rebinding and single-instance CLI forwarding. Verify desktop-specific icon support.
+- Wayland: test a desktop with GlobalShortcuts portal, approve/reject the request,
+  verify the reported trigger fires once, change it and verify old sessions close;
+  test a desktop without the portal and confirm the disabled reason in Settings.
+- Every OS: dirty annotations must survive cancelled background capture and Quit;
+  verify capture never proceeds before the Save/Discard/Cancel decision. Launch
+  CLI before the page is ready and while an instance is hidden. Duplicate requests
+  must not start simultaneous captures. Verify settings survive restart and old
+  two-field settings files load. None of these native checks is claimed by unit tests.

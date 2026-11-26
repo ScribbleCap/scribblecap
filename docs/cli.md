@@ -83,3 +83,22 @@ scribblecap convert annotated.png --flat --format jpeg -o out.bin
 
 JPEG output uses quality 90 and is composited on white. GIF output is quantised. See
 [raster-formats.md](raster-formats.md).
+
+## Desktop app capture entry point
+
+`scribblecap-app` is the desktop app executable, separate from the `scribblecap`
+image-processing CLI described above. From its install/build location:
+
+```sh
+scribblecap-app capture
+scribblecap-app capture window --delay 5
+scribblecap-app capture screen --delay 7
+scribblecap-app capture previous
+```
+
+Modes are region (default), window, screen and previous. Delay is an integer 0–60
+seconds; invalid arguments report usage. If an instance is running, the request is
+forwarded to it; otherwise the app starts and queues it until the editor is ready.
+The same unsaved-work guard and capture flow apply as the in-app Capture menu.
+On Wayland the existing portal restrictions apply. Native forwarding and capture
+require the manual desktop checks listed in app-shell.md.

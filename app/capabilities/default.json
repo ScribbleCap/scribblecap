@@ -29,6 +29,12 @@
     "allow-shell-overlay-frame",
     "allow-shell-overlay-select",
     "allow-shell-capture-result",
-    "allow-shell-capture-cancel"
+    "allow-shell-capture-cancel",
+    "allow-shell-background-ready",
+    "allow-shell-background-status",
+    "allow-shell-show-editor",
+    "allow-shell-finish-quit",
+    "allow-shell-background-capture",
+    "allow-shell-set-background-settings"
   ]
 }

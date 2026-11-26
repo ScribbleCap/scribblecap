@@ -24,7 +24,7 @@ export async function cancelCapture(): Promise<void> {
 
 export interface CaptureAvailability { wayland: boolean; previous: boolean }
 export type CaptureMode = 'region' | 'window' | 'screen' | 'previous';
-export interface CaptureSettings { captureFolder: string | null; autoSave: boolean }
+export interface CaptureSettings { captureFolder: string | null; autoSave: boolean; captureHotkey?: string; keepRunning?: boolean; hideDockIcon?: boolean }
 
 export function captureState(): Promise<CaptureAvailability> {
   return invoke<CaptureAvailability>('shell_capture_state');

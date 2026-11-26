@@ -2,6 +2,7 @@
   import fontLicense from './licenses/NotoSans-OFL.txt?raw';
   import { onMount, onDestroy } from 'svelte';
   import { listen } from '@tauri-apps/api/event';
+  import * as background from './lib/background';
   import * as bridge from './lib/bridge';
   import AnnotationControls from './lib/AnnotationControls.svelte';
   import PrivacyControls from './lib/PrivacyControls.svelte';
@@ -88,6 +89,7 @@
   let dirty = $state(false);
   let prompt = $state.raw<((choice: 'save' | 'discard' | 'cancel') => void) | null>(null);
   let settingsOpen = $state(false);
+  let quitting = false;
   const modal = $derived(!!prompt || settingsOpen);
   const syncDirty = () => { dirty = tracker.dirty; };
   const paths2d = new WeakMap<WirePath, Path2D>();
@@ -508,6 +510,28 @@
           if (mounted) stops.push(stop); else stop();
         }).catch(cause => { if (alive) error = String(cause); });
       };
+      void listen<background.BackgroundAction>('background-action', async ({payload:action}) => {
+        if (action.kind === 'show') return;
+        if (action.kind === 'error') { error=action.message; return; }
+        if (action.kind === 'quit') {
+          if (quitting || prompt) return;
+          quitting=true;
+          try {
+            await capture.cancelCapture();
+            while(busy && alive) await new Promise(resolve=>window.setTimeout(resolve,50));
+            if (!alive) return;
+            settingsOpen=false;
+            if (await confirmReplace()) await background.finishQuit().catch(report);
+          } finally {quitting=false;}
+          return;
+        }
+        if (busy || modal) { error='Finish the current action before starting another background request.'; return; }
+        if (action.kind === 'settings') { settingsOpen=true; return; }
+        if (action.kind === 'capture') {
+          if (dirty) await background.showEditor().catch(report);
+          await replaceWith(() => background.backgroundCapture(action.mode,action.delay));
+        }
+      }).then(stop => { if(mounted) {stops.push(stop);void background.backgroundReady().catch(report);}else stop(); }).catch(report);
       subscribe('capture-ready', () => { void load(capture.captureResult); });
       subscribe('capture-save-failed', message => { error = String(message); });
     }

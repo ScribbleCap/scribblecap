@@ -29,3 +29,7 @@ the font notice panel is not a complete inventory of all linked libraries.
 Official background (US; other jurisdictions can differ):
 - [Copyright Office Circular 33](https://www.copyright.gov/circs/circ33.pdf): distinguishes ideas/common symbols from protectable creative expression.
 - [USPTO likelihood of confusion](https://www.uspto.gov/trademarks/search/likelihood-confusion): branding concerns depend on marks and related goods/services.
+
+The M4-6 monochrome tray template is a new reduction of our own capture-frame /
+loop-arrow icon: `icon/tray-template.svg`, with matching runtime line geometry in
+`app/src/background.rs`. No external icon set or icon font was used.

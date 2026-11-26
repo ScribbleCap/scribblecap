@@ -1,6 +1,12 @@
 /// Every command registered in `main.rs`. Declaring them here makes Tauri generate
 /// `allow-<name>` permissions, so each window gets only what its capability grants.
 const COMMANDS: &[&str] = &[
+    "shell_background_ready",
+    "shell_background_status",
+    "shell_show_editor",
+    "shell_finish_quit",
+    "shell_background_capture",
+    "shell_set_background_settings",
     "shell_open_image",
     "shell_paste_image",
     "shell_drop_image",
