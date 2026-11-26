@@ -6,10 +6,12 @@ import * as bridge from './lib/bridge';
 import * as capture from './lib/capture';
 import type { LoadedImage } from './lib/image-packet';
 
+import * as background from './lib/background';
+vi.mock('./lib/background',()=>({backgroundStatus:vi.fn().mockResolvedValue({trayAvailable:true,hotkeyAvailable:true,hotkeyError:null,trayNote:null,platform:'macos'}),setBackgroundSettings:vi.fn(),backgroundReady:vi.fn().mockResolvedValue(undefined),showEditor:vi.fn().mockResolvedValue(undefined),finishQuit:vi.fn().mockResolvedValue(undefined),backgroundCapture:vi.fn()}));
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
 const platform = vi.hoisted(() => ({ desktop: true }));
 vi.mock('./lib/bridge', () => ({ droppedImage: vi.fn(), saveImage: vi.fn(), copyImage: vi.fn(), dragImage: vi.fn(), restorePrivacy: vi.fn(), privacyImage: vi.fn(), beginDrag: vi.fn(), cancelDrag: vi.fn(), get desktop() { return platform.desktop; }, openImage: vi.fn(), pasteImage: vi.fn(), browserImage: vi.fn() }));
-vi.mock('./lib/capture', () => ({ captureState: vi.fn(), captureImage: vi.fn(), captureTimer: vi.fn(), captureResult: vi.fn(), getSettings: vi.fn(), setAutoSave: vi.fn(), chooseCaptureFolder: vi.fn() }));
+vi.mock('./lib/capture', () => ({ cancelCapture: vi.fn().mockResolvedValue(undefined), captureState: vi.fn(), captureImage: vi.fn(), captureTimer: vi.fn(), captureResult: vi.fn(), getSettings: vi.fn(), setAutoSave: vi.fn(), chooseCaptureFolder: vi.fn() }));
 // The real core WebAssembly module (built by `pnpm test`), loaded from disk; a fresh
 // instance per test keeps documents independent.
 vi.mock('./lib/core', async original => {
@@ -26,6 +28,8 @@ const viewTransform = () => transform.mock.calls.at(-2);
 let resize: ResizeObserverCallback | undefined;
 beforeEach(() => {
   platform.desktop = true;
+  vi.mocked(background.backgroundCapture).mockReset().mockResolvedValue(null);
+  vi.mocked(background.showEditor).mockClear();vi.mocked(background.finishQuit).mockClear();
   vi.mocked(bridge.openImage).mockReset(); vi.mocked(bridge.pasteImage).mockReset(); transform.mockReset();
   vi.mocked(listen).mockReset().mockResolvedValue(vi.fn());
   vi.mocked(bridge.droppedImage).mockReset();
@@ -167,6 +171,15 @@ describe('annotation tools', () => {
     await fireEvent.pointerUp(target, { pointerId: 1 });
   };
   const pressed = () => screen.getAllByRole('button', { pressed: true }).filter(b => b.closest('[role=toolbar]')).map(b => b.getAttribute('aria-label'));
+  it('routes a background capture through the unsaved-work prompt', async () => {
+    const viewport=await openBig(); await drag(viewport,[220,220],[300,280]);
+    const handler=vi.mocked(listen).mock.calls.find(call=>call[0]==='background-action')![1];
+    const pending=handler({event:'background-action',id:0,payload:{kind:'capture',mode:'window',delay:7}});
+    await waitFor(()=>expect(screen.getByRole('alertdialog')).toBeTruthy());
+    expect(background.showEditor).toHaveBeenCalled();expect(background.backgroundCapture).not.toHaveBeenCalled();
+    await fireEvent.click(screen.getByRole('button',{name:'Cancel'}));await pending;
+    expect(background.backgroundCapture).not.toHaveBeenCalled();
+  });
 
   it('starts with the arrow tool and switches tools by key and button', async () => {
     await openBig();
@@ -475,7 +488,7 @@ describe('native file drops', () => {
     await waitFor(() => expect(screen.getByLabelText('dropped.png, 2 by 1 pixels')).toBeTruthy());
     expect(bridge.droppedImage).toHaveBeenCalledWith();
     mounted.unmount();
-    expect(stop).toHaveBeenCalledTimes(4); // menu, drop, capture-ready, capture-save-failed
+    expect(stop).toHaveBeenCalledTimes(5); // menu, drop, capture-ready, capture-save-failed
   });
   it('keeps the current image when a native drop is rejected', async () => {
     vi.mocked(bridge.openImage).mockResolvedValue(image());
@@ -794,4 +807,13 @@ describe('capture from the editor', () => {
     expect(screen.getByRole('dialog', { name: 'Settings' })).toBeTruthy();
     expect((await screen.findByRole('switch', { name: 'Auto-save captures' }) as HTMLInputElement).checked).toBe(false);
   });
+});
+
+it('shows a queued startup argument error without preventing the editor from opening', async () => {
+  render(App);
+  await waitFor(() => expect(vi.mocked(listen).mock.calls.some(call => call[0] === 'background-action')).toBe(true));
+  const handler = vi.mocked(listen).mock.calls.find(call => call[0] === 'background-action')![1];
+  await handler({ event: 'background-action', id: 0, payload: { kind: 'error', message: 'Usage: scribblecap-app capture' } });
+  expect(screen.getByRole('alert').textContent).toContain('Usage: scribblecap-app capture');
+  expect(screen.getByRole('button', { name: 'Open an image' })).toBeTruthy();
 });

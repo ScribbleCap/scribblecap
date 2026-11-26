@@ -306,6 +306,7 @@ fn now() -> chrono::NaiveDateTime {
 /// Open a finished capture in the editor session, auto-saving it when enabled.
 /// Blocks on the folder picker: call off the main thread.
 fn finish(app: &AppHandle, image: RasterImage) -> Result<Vec<u8>, String> {
+    crate::background::refresh_previous(app);
     let title = naming::capture_title(now());
     crate::shell::remember(app, None, image.clone(), None)?;
     let auto_save = app
@@ -384,6 +385,15 @@ pub async fn shell_capture_timer(app: AppHandle, seconds: u8) -> Result<Response
     if !valid_timer(seconds) {
         return Err("The timer can be 3, 5 or 10 seconds.".into());
     }
+    capture_delayed(app, CaptureMode::Region, seconds).await
+}
+
+/// Shared countdown flow; background CLI requests may delay any capture mode.
+pub async fn capture_delayed(
+    app: AppHandle,
+    mode: CaptureMode,
+    seconds: u8,
+) -> Result<Response, String> {
     let busy = starting(&app)?;
     let cancel = lock(&app)?.cancel.clone();
     tauri::async_runtime::spawn_blocking(move || {
@@ -435,7 +445,7 @@ pub async fn shell_capture_timer(app: AppHandle, seconds: u8) -> Result<Response
                 return Ok(Response::new(Vec::new()));
             }
             std::thread::sleep(Duration::from_millis(HIDE_SETTLE_MS));
-            capture_hidden(&app, CaptureMode::Region, hidden, busy)?
+            capture_hidden(&app, mode, hidden, busy)?
         };
         // An empty packet: overlays are open (the result follows `capture-ready`)
         // or the timer was cancelled.

@@ -1,0 +1,6 @@
+<!-- Original monochrome reduction of ScribbleCap's capture-frame / loop-arrow.
+     Geometry matches app/src/background.rs tray_image; no external artwork. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="black" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M5 11V5H11 M21 5H27V11 M27 21V27H21 M11 27H5V21"/>
+  <path d="M10 22L13 22L17 20L18 17L17 15L15 15L14 17L16 19L19 18L22 12 M18 13L22 11L23 16"/>
+</svg>

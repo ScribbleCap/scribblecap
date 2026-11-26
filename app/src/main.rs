@@ -3,6 +3,9 @@
 // Hide the extra console window on Windows release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod background;
+#[cfg(target_os = "linux")]
+mod background_linux;
 mod canvas;
 mod capture;
 mod menus;
@@ -17,18 +20,44 @@ mod shell;
 use tauri::{Emitter, Manager};
 
 fn main() {
-    tauri::Builder::default()
+    let initial = background::launch_action(std::env::args().skip(1));
+    let builder =
+        tauri::Builder::default().plugin(tauri_plugin_single_instance::init(|app, args, _| {
+            let action = background::launch_action(args.into_iter().skip(1))
+                .unwrap_or(background::Action::Show);
+            background::request(app, action);
+        }));
+    let builder = if scribblecap_capture::is_wayland() {
+        builder
+    } else {
+        builder.plugin(tauri_plugin_global_shortcut::Builder::new().build())
+    };
+    builder
+        .manage(background::Runtime::default())
         .manage(shell::DroppedImage::default())
         .manage(shell::ImageSession::default())
         .manage(privacy::PrivacyHistory::default())
         .manage(output::ShareState::default())
         .manage(capture::session::CaptureState::default())
-        .setup(|app| {
+        .setup(move |app| {
             app.manage(settings::initial(app.handle()));
             menus::install(app)?;
+            background::initialize(app.handle());
+            if let Some(action) = initial.clone() {
+                background::request(app.handle(), action);
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
+            if window.label() == "main" && matches!(event, tauri::WindowEvent::ThemeChanged(_)) {
+                background::theme_changed(window.app_handle());
+            }
+            if window.label() == "main"
+                && let tauri::WindowEvent::CloseRequested { api, .. } = event
+            {
+                api.prevent_close();
+                background::close_requested(window.app_handle());
+            }
             if matches!(event, tauri::WindowEvent::Destroyed) {
                 capture::window_destroyed(window);
             }
@@ -42,6 +71,12 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .invoke_handler(tauri::generate_handler![
+            background::shell_background_ready,
+            background::shell_background_status,
+            background::shell_show_editor,
+            background::shell_finish_quit,
+            background::shell_background_capture,
+            settings::shell_set_background_settings,
             shell::shell_open_image,
             shell::shell_paste_image,
             shell::shell_drop_image,
@@ -68,6 +103,19 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("error while building ScribbleCap")
         .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if matches!(event, tauri::RunEvent::Reopen { .. }) {
+                background::show(app);
+            }
+            if let tauri::RunEvent::ExitRequested { api, .. } = &event
+                && !app
+                    .state::<background::Runtime>()
+                    .exiting
+                    .load(std::sync::atomic::Ordering::SeqCst)
+            {
+                api.prevent_exit();
+                background::request(app, background::Action::Quit);
+            }
             if matches!(event, tauri::RunEvent::Exit) {
                 output::cleanup_share_files(app);
             }

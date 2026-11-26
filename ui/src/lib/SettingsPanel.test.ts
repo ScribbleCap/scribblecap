@@ -1,8 +1,11 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { beforeEach, expect, it, vi } from 'vitest';
 import SettingsPanel from './SettingsPanel.svelte';
+import { backgroundStatus,setBackgroundSettings } from './background';
 import { chooseCaptureFolder, getSettings, setAutoSave } from './capture';
 
+vi.mock('@tauri-apps/api/event',()=>({listen:vi.fn().mockResolvedValue(vi.fn())}));
+vi.mock('./background',()=>({backgroundStatus:vi.fn().mockResolvedValue({trayAvailable:true,hotkeyAvailable:true,hotkeyError:null,trayNote:null,platform:'macos'}),setBackgroundSettings:vi.fn()}));
 vi.mock('./capture', () => ({ getSettings: vi.fn(), setAutoSave: vi.fn(), chooseCaptureFolder: vi.fn() }));
 beforeEach(() => {
   vi.mocked(getSettings).mockReset().mockResolvedValue({ captureFolder: null, autoSave: false });
@@ -41,4 +44,21 @@ it('closes with the Close button and Escape', async () => {
   await fireEvent.click(screen.getByRole('button', { name: 'Close' }));
   await fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
   expect(close).toHaveBeenCalledTimes(2);
+});
+
+it('reports shortcut registration errors and keeps the settings panel usable',async()=>{
+  vi.mocked(setBackgroundSettings).mockRejectedValueOnce(new Error('Shortcut already in use'));
+  render(SettingsPanel,{close:vi.fn()});
+  await waitFor(()=>expect((screen.getByLabelText('Global region shortcut') as HTMLInputElement).disabled).toBe(false));
+  await fireEvent.input(screen.getByLabelText('Global region shortcut'),{target:{value:'Ctrl+Shift+Digit6'}});
+  await fireEvent.click(screen.getByRole('button',{name:'Apply background settings'}));
+  await waitFor(()=>expect(screen.getByRole('alert').textContent).toContain('already in use'));
+});
+it('disables unsupported Wayland shortcut configuration with its reason',async()=>{
+  vi.mocked(backgroundStatus).mockResolvedValueOnce({trayAvailable:false,hotkeyAvailable:false,hotkeyError:'This desktop has no GlobalShortcuts portal',trayNote:'No tray',platform:'linux'});
+  render(SettingsPanel,{close:vi.fn()});
+  await waitFor(()=>expect(screen.getByText(/no GlobalShortcuts portal/)).toBeTruthy());
+  expect((screen.getByLabelText('Global region shortcut') as HTMLInputElement).disabled).toBe(true);
+  expect((screen.getByLabelText('Keep running in the tray/menu bar when the window is closed') as HTMLInputElement).checked).toBe(false);
+  expect(screen.queryByLabelText('Hide Dock icon')).toBeNull();
 });

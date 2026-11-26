@@ -158,7 +158,10 @@ scheduled alongside the tasks below (D1–D3 and D6a can start now)._
   checklist in [app-shell.md](app-shell.md#capture-m4-5) is still to be run
   (mixed DPI, Windows and X11 overlay placement, Wayland portal, macOS permission).
   See [decision 0016](decisions/0016-in-app-capture.md).
-- [ ] **M4-6 Global hotkey / tray icon**, `app capture` CLI command.
+- [~] **M4-6 Global hotkey / tray icon**, `app capture` CLI command.
+  Tray/menu-bar requests, configurable native/Wayland portal shortcuts, guarded
+  close/quit and single-instance CLI implemented. Real desktop checklist pending;
+  see [app-shell.md](app-shell.md#background-capture-m4-6) and [decision 0018](decisions/0018-background-capture-entry-points.md).
 
 ## M5 — v1 polish
 
