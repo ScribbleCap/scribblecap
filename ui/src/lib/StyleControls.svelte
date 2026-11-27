@@ -2,18 +2,20 @@
   import type { Snippet } from 'svelte';
   import type { Style } from './shapes';
   let { style, disabled, change, extra }: { style: Style; disabled: boolean; change: (style: Style) => void; extra?: Snippet } = $props();
+  let menu: HTMLDetailsElement;
+  function choose(next: Style) { change(next); menu.open = false; }
   const colours = ['#e5194a', '#ff9500', '#ffcc00', '#34c759', '#007aff', '#af52de', '#ffffff', '#000000'];
 </script>
-<details class="style-controls">
+<details bind:this={menu} class="style-controls">
   <summary aria-label={`Colour and size: ${style.color}, ${style.width} px`} title="Colour and size"><span class="swatch" style:background={style.color}></span><span class="size" style:height={`${Math.min(style.width, 10)}px`}></span></summary>
   <div class="popover">
     <fieldset disabled={disabled}><legend>Annotation colour</legend>
       <div class="swatches">{#each colours as color (color)}
-        <button type="button" aria-label={`Colour ${color}`} aria-pressed={style.color === color} style:background={color} onclick={() => change({ ...style, color })}></button>
+        <button type="button" aria-label={`Colour ${color}`} aria-pressed={style.color === color} style:background={color} onclick={() => choose({ ...style, color })}></button>
       {/each}</div>
-      <label>Custom colour <input type="color" value={style.color} oninput={(event) => change({ ...style, color: event.currentTarget.value })} /></label>
+      <label>Custom colour <input type="color" value={style.color} oninput={(event) => change({ ...style, color: event.currentTarget.value })} onchange={() => menu.open = false} /></label>
     </fieldset>
-    <label>Stroke size <select disabled={disabled} value={style.width} onchange={(event) => change({ ...style, width: Number(event.currentTarget.value) })}>
+    <label>Stroke size <select disabled={disabled} value={style.width} onchange={(event) => choose({ ...style, width: Number(event.currentTarget.value) })}>
       {#each [2, 4, 6, 10, 16] as size (size)}<option value={size}>{size} px</option>{/each}
     </select></label>
     {@render extra?.()}

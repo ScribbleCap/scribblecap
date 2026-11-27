@@ -92,3 +92,25 @@ variants. Steps start at one and renumber in document order after deletion; undo
 restores the previous numbers. Move them with Select or keyboard nudging; resize by
 the circular handle or numeric width. Shared core paths, including bundled step
 number glyphs, are used in both preview and saved output.
+
+## Editor feedback fixes (macOS follow-up)
+
+Privacy drag previews project image bounds into screen coordinates after the image
+border is painted, with a two-screen-pixel outline. The mode hint is one line:
+“Drag over the area to redact/pixelate. Esc to stop”. Escape exits the mode and
+cancels an active privacy drag. Detailed privacy guidance remains in More → Privacy.
+
+Transient output messages stay in the polite live region for four seconds. A new
+message restarts that timer; errors still require manual dismissal. Title-bar
+details menus close on outside pointer-down, Escape or opening another top-level
+menu. Preset/committed custom colour, size and Share choices close their menu;
+interacting with custom colour or numeric fields does not dismiss it prematurely.
+When a native dialog or ARIA modal is open, its Escape handling takes precedence
+over title-bar menus, preserving the dialog's dismissal and focus behavior.
+
+Manual macOS re-check pending: run the native app, open an image, select Stamp and
+inspect the title bar at 1100 px and the 800 px minimum. Confirm icons stay on one
+row, no Tool select/Open/Paste buttons appear, and More opens within the window.
+Also check a zoomed/panned privacy preview, Escape cancellation, colour/size and
+Share dismissal, outside clicks, and message expiry. The native dev app launched
+during development; computer-use's native pipe was unavailable for visual inspection.
