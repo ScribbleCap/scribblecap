@@ -13,6 +13,7 @@ mod pixel_request;
 mod privacy;
 mod settings;
 mod shell;
+mod system_share;
 
 use tauri::{Emitter, Manager};
 
@@ -46,6 +47,7 @@ fn main() {
             shell::shell_paste_image,
             shell::shell_drop_image,
             output::shell_copy_image,
+            system_share::shell_share_image,
             canvas::shell_transform_image,
             privacy::shell_privacy_image,
             privacy::shell_restore_privacy,
@@ -70,6 +72,7 @@ fn main() {
         .run(|app, event| {
             if matches!(event, tauri::RunEvent::Exit) {
                 output::cleanup_share_files(app);
+                system_share::cleanup();
             }
         });
 }

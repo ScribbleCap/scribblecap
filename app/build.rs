@@ -5,6 +5,7 @@ const COMMANDS: &[&str] = &[
     "shell_paste_image",
     "shell_drop_image",
     "shell_copy_image",
+    "shell_share_image",
     "shell_transform_image",
     "shell_privacy_image",
     "shell_restore_privacy",

@@ -12,6 +12,7 @@
     "allow-shell-paste-image",
     "allow-shell-drop-image",
     "allow-shell-copy-image",
+    "allow-shell-share-image",
     "allow-shell-transform-image",
     "allow-shell-privacy-image",
     "allow-shell-restore-privacy",

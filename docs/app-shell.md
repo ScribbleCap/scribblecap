@@ -221,3 +221,41 @@ decision: [0016](decisions/0016-in-app-capture.md).
 - [ ] Read-only capture folder: asks for another folder; no loop.
 - [ ] Auto-save on and off: files and names as above, no overwrites; Alt+F4 on an
   overlay restores the editor.
+
+
+## System share (M5-5)
+
+On macOS and Windows, **Share → Share…** renders the current annotated image as a
+flat PNG through the same renderer as Copy. It opens the native sharing panel;
+it does not save or alter the opened file, mark the document saved, or embed the
+editable document or undo history. Cancel silently returns to the editor. Failures
+appear in the usual dismissible error message. Linux hides Share…; Copy, Save,
+Export and drag-out remain available.
+
+macOS anchors the picker to the Share button. Windows opens the panel for the main
+window; Windows chooses its position. Windows requires version 10 2004 or newer
+for cancellation notifications. The temporary `ScribbleCap.png` lives in a private,
+unique OS temporary directory until completion/cancellation (or normal app exit).
+It can remain after a crash. Destination applications and the OS control their own
+copies. Undoing a privacy edit restores the previous pixels; apply/redo redaction
+before sharing when needed. See decision 0019 for the native approach and licences.
+
+### System share desktop checklist (pending)
+
+- [ ] macOS: annotated image, including marker, text and a privacy edit; Share…
+  opens below the Share button at normal and Retina scaling, including after
+  resizing the window. Check light and dark appearance.
+- [ ] macOS: AirDrop, Messages and Mail each receive a readable flat PNG with the
+  expected pixels. Cancel the picker and each destination without an error.
+- [ ] Windows: Nearby Share and Mail receive the expected PNG; check the HWND panel
+  on mixed-DPI displays. Cancel before and after selecting a destination.
+- [ ] Both: inspect the temporary directory while transferring; it exists during
+  the transfer and disappears after success/cancel. Repeat sharing, close normally,
+  and verify no retained temporary directories remain.
+- [ ] Both: simulate an unavailable destination/panel; the editor reports an error
+  and permits retry. Share never writes the opened file or clears unsaved changes.
+- [ ] Linux: Share… is absent; Copy, Save, Export and drag-out still work.
+
+Automated checks cover SCOP framing, flat rendering, temporary file naming and
+cleanup, the command capability, Linux visibility and UI error handling. Native
+panel checks have not been completed in the agent environment.
