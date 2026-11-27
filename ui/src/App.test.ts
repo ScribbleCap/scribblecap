@@ -7,8 +7,8 @@ import * as capture from './lib/capture';
 import type { LoadedImage } from './lib/image-packet';
 
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
-const platform = vi.hoisted(() => ({ desktop: true }));
-vi.mock('./lib/bridge', () => ({ droppedImage: vi.fn(), saveImage: vi.fn(), copyImage: vi.fn(), dragImage: vi.fn(), restorePrivacy: vi.fn(), privacyImage: vi.fn(), beginDrag: vi.fn(), cancelDrag: vi.fn(), get desktop() { return platform.desktop; }, openImage: vi.fn(), pasteImage: vi.fn(), browserImage: vi.fn() }));
+const platform = vi.hoisted(() => ({ desktop: true, systemShareSupported: true }));
+vi.mock('./lib/bridge', () => ({ droppedImage: vi.fn(), shareImage: vi.fn(), get systemShareSupported() { return platform.systemShareSupported; }, saveImage: vi.fn(), copyImage: vi.fn(), dragImage: vi.fn(), restorePrivacy: vi.fn(), privacyImage: vi.fn(), beginDrag: vi.fn(), cancelDrag: vi.fn(), get desktop() { return platform.desktop; }, openImage: vi.fn(), pasteImage: vi.fn(), browserImage: vi.fn() }));
 vi.mock('./lib/capture', () => ({ captureState: vi.fn(), captureImage: vi.fn(), captureTimer: vi.fn(), captureResult: vi.fn(), getSettings: vi.fn(), setAutoSave: vi.fn(), chooseCaptureFolder: vi.fn() }));
 // The real core WebAssembly module (built by `pnpm test`), loaded from disk; a fresh
 // instance per test keeps documents independent.
@@ -26,6 +26,8 @@ const viewTransform = () => transform.mock.calls.at(-2);
 let resize: ResizeObserverCallback | undefined;
 beforeEach(() => {
   platform.desktop = true;
+  platform.systemShareSupported = true;
+  vi.mocked(bridge.shareImage).mockReset().mockResolvedValue();
   vi.mocked(bridge.openImage).mockReset(); vi.mocked(bridge.pasteImage).mockReset(); transform.mockReset();
   vi.mocked(listen).mockReset().mockResolvedValue(vi.fn());
   vi.mocked(bridge.droppedImage).mockReset();
@@ -793,5 +795,30 @@ describe('capture from the editor', () => {
     await fireEvent.click(screen.getByRole('menuitem', { name: 'Settings…' }));
     expect(screen.getByRole('dialog', { name: 'Settings' })).toBeTruthy();
     expect((await screen.findByRole('switch', { name: 'Auto-save captures' }) as HTMLInputElement).checked).toBe(false);
+  });
+});
+
+describe('system share', () => {
+  it('hides the native share item on Linux', () => {
+    platform.systemShareSupported = false;
+    render(App);
+    screen.getByText('Share', { selector: 'summary' }).closest('details')!.open = true;
+    expect(screen.queryByText('Share…', { selector: 'button' })).toBeNull();
+  });
+  it('shares the current document and button anchor, closes the menu, and reports failure', async () => {
+    vi.mocked(bridge.openImage).mockResolvedValue(image());
+    vi.mocked(bridge.shareImage).mockRejectedValueOnce(new Error('Share panel unavailable'));
+    const rect = { x: 52, y: 8, width: 50, height: 28 } as DOMRect;
+    render(App);
+    await fireEvent.click(screen.getByRole('button', { name: 'Open an image' }));
+    await waitFor(() => expect(screen.getByLabelText('test.png, 2 by 1 pixels')).toBeTruthy());
+    const menu = screen.getByText('Share', { selector: 'summary' }).closest('details')!;
+    menu.open = true;
+    vi.spyOn(menu.querySelector('summary')!, 'getBoundingClientRect').mockReturnValue(rect);
+    await fireEvent.click(screen.getByRole('button', { name: 'Share…' }));
+    await waitFor(() => expect(bridge.shareImage).toHaveBeenCalled());
+    expect(vi.mocked(bridge.shareImage).mock.calls[0][2]).toEqual(rect);
+    expect(menu.open).toBe(false);
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Share panel unavailable'));
   });
 });

@@ -3032,6 +3032,9 @@ dependencies = [
  "chrono",
  "drag",
  "gtk",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-foundation",
  "scribblecap-capture",
  "scribblecap-core",
  "scribblecap-formats",
@@ -3043,6 +3046,8 @@ dependencies = [
  "tauri-plugin-dialog",
  "tempfile",
  "url",
+ "windows 0.62.2",
+ "windows-collections",
 ]
 
 [[package]]

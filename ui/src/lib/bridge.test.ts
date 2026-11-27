@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { pixelRequest } from './pixel-request';
 import { invoke } from '@tauri-apps/api/core';
-import { openImage, pasteImage, copyImage, saveImage, dragImage, privacyImage, restorePrivacy } from './bridge';
+import { openImage, pasteImage, copyImage, saveImage, dragImage, shareImage, privacyImage, restorePrivacy } from './bridge';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn(), isTauri: () => true }));
 beforeEach(() => vi.mocked(invoke).mockReset());
@@ -31,6 +31,9 @@ it('passes annotation snapshots and save intent without any frontend filesystem 
   expect(invoke).toHaveBeenLastCalledWith('shell_copy_image', pixelRequest(image, { document }));
   await saveImage(image, document, true, false);
   expect(invoke).toHaveBeenLastCalledWith('shell_save_image', pixelRequest(image, { name: 'test.png', document, saveAs: true, flat: false }));
+  const anchor = { x: 40, y: 8, width: 56, height: 28 };
+  await shareImage(image, document, anchor);
+  expect(invoke).toHaveBeenLastCalledWith('shell_share_image', pixelRequest(image, { document, anchor }));
   await dragImage(image, document, 7);
   expect(invoke).toHaveBeenLastCalledWith('shell_drag_image', pixelRequest(image, { document, gesture: 7 }));
 });

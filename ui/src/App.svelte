@@ -203,6 +203,14 @@
     } catch (cause) { if (alive) report(cause); return false; }
     finally { if (alive) busy = false; }
   }
+  function systemShare(event: MouseEvent) {
+    const menu = (event.currentTarget as HTMLElement).closest('details');
+    const bounds = menu?.querySelector('summary')?.getBoundingClientRect();
+    if (!bounds) return;
+    const anchor = { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
+    if (menu) menu.open = false;
+    void output((image, document) => bridge.shareImage(image, document, anchor));
+  }
   function copyImage() { void output(async (image, document) => { await bridge.copyImage(image, document); if (alive) outputStatus = 'Image copied'; }); }
   /** True only when a file was written; a cancelled dialog or a failure is false. Export is not a Save. */
   async function saveImage(saveAs = false, flat = false): Promise<boolean> {
@@ -665,6 +673,7 @@
         </div>
       </details>
       <details class="share-actions"><summary>Share</summary><div>
+        {#if bridge.systemShareSupported}<button onclick={systemShare} disabled={!image || busy}>Share…</button>{/if}
         <button onclick={copyImage} disabled={!image || busy} title={`Copy image (${mod}C)`}>Copy image</button>
         <button onclick={() => saveImage()} disabled={!image || busy} title={`Save (${mod}S)`}>Save image</button>
         <button onclick={() => saveImage(true)} disabled={!image || busy} title={`Save as (${mod}Shift+S)`}>Save as…</button>

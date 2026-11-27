@@ -15,6 +15,11 @@ async function nativeImage(command: string): Promise<LoadedImage | null> {
   return decodeImagePacket(response instanceof ArrayBuffer ? response : new Uint8Array(response).buffer);
 }
 export const desktop = isTauri();
+// Tauri's desktop WebViews identify macOS/Windows here. Rust also rejects other OSes.
+export const systemShareSupported = desktop && /Mac|Win/.test(navigator.platform);
+export async function shareImage(image: LoadedImage, document: string, anchor: { x: number; y: number; width: number; height: number }): Promise<void> {
+  await invoke('shell_share_image', pixelRequest(image, { document, anchor }));
+}
 
 /** Browser-only development preview; desktop files always use Rust codecs. */
 export async function browserImage(file: Blob, name: string): Promise<LoadedImage> {
