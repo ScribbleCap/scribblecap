@@ -100,12 +100,6 @@ HEIF/AVIF, SVG and PDF follow after the first release (M6).
 
 ## M2 — Editor MVP (images)
 
-- [~] **Editor feedback follow-up** (`fix/editor-feedback`): correct privacy preview
-  projection, transient status expiry, concise cancellable privacy hint and menu
-  dismissal. Automated tests pass; macOS maintainer re-check and native toolbar
-  layout inspection remain pending; see [editor-tools.md](editor-tools.md#editor-feedback-fixes-macos-follow-up).
-
-
 _UI work follows the [design review](design-review.md): its D1–D7 items are
 scheduled alongside the tasks below (D1–D3 and D6a can start now)._
 
@@ -181,6 +175,10 @@ scheduled alongside the tasks below (D1–D3 and D6a can start now)._
   Keyboard creation/selection/resizing, tool navigation, labels and announcements
   implemented and tested. Native screen-reader and OS menu smoke checks remain;
   see [editor-tools.md](editor-tools.md#keyboard-and-screen-reader-access-m5-3).
+- [~] **Editor feedback follow-up** (`fix/editor-feedback`): correct privacy preview
+  projection, transient status expiry, concise cancellable privacy hint and menu
+  dismissal. Automated tests pass; macOS maintainer re-check and native toolbar
+  layout inspection remain pending; see [editor-tools.md](editor-tools.md#editor-feedback-fixes-macos-follow-up).
 - [x] **M5-4 CLI**: `annotate`, `render`, `convert` with docs and examples ([cli.md](cli.md)).
 - [ ] **M5-5 System share** on macOS and Windows: a **Share…** item in the Share menu
   opens the operating system's share sheet with the annotated image (macOS

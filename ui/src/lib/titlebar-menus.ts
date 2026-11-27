@@ -12,6 +12,8 @@ export function titlebarMenus(header: HTMLElement) {
   };
   const escape = (event: KeyboardEvent) => {
     if (event.key !== 'Escape') return;
+    // Native dialogs and our ARIA modals own Escape and their focus restoration.
+    if (document.querySelector('dialog[open], [aria-modal="true"]')) return;
     const menu = roots().find(root => root.open);
     if (menu) { close(menu); menu.querySelector('summary')?.focus(); event.preventDefault(); event.stopPropagation(); }
   };

@@ -24,6 +24,30 @@ it('closes on Escape and returns focus to the trigger', () => {
   style.querySelector('input')!.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
   expect(style.open).toBe(false); expect(document.activeElement).toBe(style.querySelector('summary'));
 });
+it.each([
+  '<dialog open><button>Close</button></dialog>',
+  '<div role="dialog" aria-modal="true"><button>Close</button></div>',
+  '<div role="alertdialog" aria-modal="true"><button>Cancel</button></div>',
+])('leaves Escape to the open dialog: %s', markup => {
+  const { style } = setup(); style.open = true;
+  document.body.insertAdjacentHTML('beforeend', markup);
+  const button = document.body.lastElementChild!.querySelector('button')!;
+  button.focus();
+  let reachedDialog = false;
+  button.addEventListener('keydown', () => { reachedDialog = true; });
+  const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+  button.dispatchEvent(event);
+  expect(reachedDialog).toBe(true);
+  expect(event.defaultPrevented).toBe(false);
+  expect(style.open).toBe(true);
+  expect(document.activeElement).toBe(button);
+});
+it('still closes menus when a native dialog is closed', () => {
+  const { style } = setup(); style.open = true;
+  document.body.insertAdjacentHTML('beforeend', '<dialog><button>Close</button></dialog>');
+  style.querySelector('input')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  expect(style.open).toBe(false);
+});
 it('closes Share after choosing an action', () => {
   const { share } = setup(); share.open = true; share.querySelector('button')!.click(); expect(share.open).toBe(false);
 });

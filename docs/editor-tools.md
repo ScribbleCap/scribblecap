@@ -105,6 +105,8 @@ message restarts that timer; errors still require manual dismissal. Title-bar
 details menus close on outside pointer-down, Escape or opening another top-level
 menu. Preset/committed custom colour, size and Share choices close their menu;
 interacting with custom colour or numeric fields does not dismiss it prematurely.
+When a native dialog or ARIA modal is open, its Escape handling takes precedence
+over title-bar menus, preserving the dialog's dismissal and focus behavior.
 
 Manual macOS re-check pending: run the native app, open an image, select Stamp and
 inspect the title bar at 1100 px and the 800 px minimum. Confirm icons stay on one
